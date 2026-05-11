@@ -165,7 +165,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
 
 /* Filter */
 .filter-row{padding:0 16px 10px;flex-shrink:0}
-.filter-row input{width:100%;background:var(--s2);border:1.5px solid var(--border);border-radius:13px;color:var(--text);font-size:16px;padding:11px 14px;outline:none;-webkit-appearance:none}
+.filter-row input{width:100%;background:var(--s2);border:1.5px solid var(--border);border-radius:13px;color:var(--text);font-size:16px;padding:11px 14px;outline:none;-webkit-appearance:none;touch-action:manipulation}
 .filter-row input:focus{border-color:var(--orange)}
 .filter-row input::placeholder{color:var(--muted)}
 
@@ -196,7 +196,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
   <div id="v-library" class="view">
     <div class="vhead"><h1>Library</h1></div>
     <div class="filter-row">
-      <input id="lib-filter" type="search" placeholder="Filter library…" autocomplete="off" autocorrect="off" spellcheck="false">
+      <input id="lib-filter" type="text" inputmode="search" placeholder="Filter library…" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false">
     </div>
     <div class="scroll-area" id="library-list"></div>
   </div>
@@ -208,7 +208,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
       <h2 id="ep-show-name"></h2>
     </div>
     <div class="filter-row">
-      <input id="ep-filter" type="search" placeholder="Filter episodes…" autocomplete="off" autocorrect="off" spellcheck="false">
+      <input id="ep-filter" type="text" inputmode="search" placeholder="Filter episodes…" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false">
     </div>
     <div class="scroll-area" id="ep-list"></div>
   </div>
