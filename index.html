@@ -163,6 +163,15 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
 .empty p{font-size:15px;line-height:1.4}
 .loading-msg{text-align:center;padding:32px;color:var(--dim);font-size:14px}
 
+/* Filter */
+.filter-row{padding:0 16px 10px;flex-shrink:0}
+.filter-row input{width:100%;background:var(--s2);border:1.5px solid var(--border);border-radius:13px;color:var(--text);font-size:16px;padding:11px 14px;outline:none;-webkit-appearance:none}
+.filter-row input:focus{border-color:var(--orange)}
+.filter-row input::placeholder{color:var(--muted)}
+
+/* Queue meta */
+.q-meta{font-size:10px;color:var(--muted);overflow:hidden;white-space:nowrap;text-overflow:ellipsis;margin-top:1px}
+
 /* Toast */
 #toast{position:fixed;bottom:100px;left:50%;transform:translateX(-50%) translateY(12px);background:var(--s2);border:1px solid var(--border);border-radius:22px;padding:10px 20px;font-size:13px;font-weight:700;color:var(--text);opacity:0;transition:opacity 0.18s,transform 0.18s;pointer-events:none;z-index:500;white-space:nowrap}
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
@@ -186,6 +195,9 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
   <!-- LIBRARY VIEW -->
   <div id="v-library" class="view">
     <div class="vhead"><h1>Library</h1></div>
+    <div class="filter-row">
+      <input id="lib-filter" type="search" placeholder="Filter library…" autocomplete="off" autocorrect="off" spellcheck="false">
+    </div>
     <div class="scroll-area" id="library-list"></div>
   </div>
 
@@ -194,6 +206,9 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
     <div class="vhead">
       <button class="back-btn" id="ep-back">‹</button>
       <h2 id="ep-show-name"></h2>
+    </div>
+    <div class="filter-row">
+      <input id="ep-filter" type="search" placeholder="Filter episodes…" autocomplete="off" autocorrect="off" spellcheck="false">
     </div>
     <div class="scroll-area" id="ep-list"></div>
   </div>
@@ -394,6 +409,8 @@ function nav(view) {
 }
 
 document.getElementById('ep-back').addEventListener('click', () => nav('library'));
+document.getElementById('lib-filter').addEventListener('input', () => renderLibrary());
+document.getElementById('ep-filter').addEventListener('input', () => { if (episodePodcastId) renderEps(episodePodcastId); });
 
 // ── Search ────────────────────────────────────────────────────────────────────
 document.getElementById('search-btn').addEventListener('click', doSearch);
@@ -456,7 +473,13 @@ function renderLibrary() {
     el.innerHTML = '<div class="empty"><div class="ico">🎙</div><p>No subscriptions yet.<br>Search for podcasts to get started.</p></div>';
     return;
   }
-  el.innerHTML = S.subs.map(p => `
+  const fq = document.getElementById('lib-filter').value.trim().toLowerCase();
+  const subs = fq ? S.subs.filter(p => p.name.toLowerCase().includes(fq)) : S.subs;
+  if (!subs.length) {
+    el.innerHTML = '<div class="empty"><p>No matches.</p></div>';
+    return;
+  }
+  el.innerHTML = subs.map(p => `
     <div class="lib-card" onclick="showEpisodes(${p.id})">
       <img class="lib-art" src="${esc(p.art)}" alt="" loading="lazy">
       <div class="lib-info">
@@ -470,6 +493,7 @@ function renderLibrary() {
 // ── Episodes ──────────────────────────────────────────────────────────────────
 function showEpisodes(podId) {
   episodePodcastId = podId;
+  document.getElementById('ep-filter').value = '';
   const pod = S.subs.find(s => s.id === podId);
   document.getElementById('ep-show-name').textContent = pod?.name || '';
   currentView = 'episodes';
@@ -531,6 +555,7 @@ async function fetchFeed(podId, feedUrl) {
       const dur = item.getElementsByTagNameNS(itns, 'duration')[0]?.textContent ||
                   item.querySelector('duration')?.textContent || '';
       const pub = item.querySelector('pubDate')?.textContent || '';
+      const epNum = item.getElementsByTagNameNS(itns, 'episode')[0]?.textContent?.trim() || '';
       return {
         id: `${podId}_${i}`,
         podId,
@@ -540,6 +565,7 @@ async function fetchFeed(podId, feedUrl) {
         audioUrl,
         dur: parseDur(dur.trim()),
         date: pub ? new Date(pub).toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'}) : '',
+        epNum,
       };
     }).filter(Boolean);
     S.lib[podId] = eps;
@@ -551,10 +577,14 @@ async function fetchFeed(podId, feedUrl) {
 }
 
 function renderEps(podId) {
-  const eps = S.lib[podId] || [];
+  const allEps = S.lib[podId] || [];
   const el = document.getElementById('ep-list');
-  if (!eps.length) { el.innerHTML = '<div class="empty"><p>No episodes found.</p></div>'; return; }
-  el.innerHTML = eps.map((ep, i) => {
+  if (!allEps.length) { el.innerHTML = '<div class="empty"><p>No episodes found.</p></div>'; return; }
+  const fq = document.getElementById('ep-filter').value.trim().toLowerCase();
+  const eps = fq ? allEps.filter(ep => ep.title.toLowerCase().includes(fq)) : allEps;
+  if (!eps.length) { el.innerHTML = '<div class="empty"><p>No matches.</p></div>'; return; }
+  el.innerHTML = eps.map(ep => {
+    const i = allEps.indexOf(ep);
     const inQ = S.queue.some(q => q.id === ep.id);
     return `
     <div class="ep-item" onclick="tapEpisode(${podId},${i},event)">
@@ -600,17 +630,21 @@ function renderQueue() {
     el.innerHTML = '<div class="empty"><div class="ico">🎵</div><p>Queue is empty.<br>Browse episodes to add them.</p></div>';
     return;
   }
-  el.innerHTML = S.queue.map((ep, i) => `
+  el.innerHTML = S.queue.map((ep, i) => {
+    const meta = [ep.epNum ? `Ep ${ep.epNum}` : '', ep.date].filter(Boolean).join(' · ');
+    return `
     <div class="q-item${i===S.qi?' now':''}" data-qi="${i}" onclick="playAt(${i},event)">
       <div class="q-num">${i===S.qi ? '▶' : i+1}</div>
       <img class="q-art" src="${esc(ep.art)}" alt="" loading="lazy">
       <div class="q-info">
         <div class="q-title">${esc(ep.title)}</div>
         <div class="q-show">${esc(ep.podName)}</div>
+        ${meta ? `<div class="q-meta">${esc(meta)}</div>` : ''}
       </div>
       <button class="q-drag" aria-label="Reorder">⠿</button>
       <button class="q-del" onclick="delFromQueue(event,${i})">×</button>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 
 function delFromQueue(ev, i) {
