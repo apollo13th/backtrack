@@ -200,6 +200,38 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
 /* Toast */
 #toast{position:fixed;bottom:100px;left:50%;transform:translateX(-50%) translateY(12px);background:var(--s2);border:1px solid var(--border);border-radius:22px;padding:10px 20px;font-size:13px;font-weight:700;color:var(--text);opacity:0;transition:opacity 0.18s,transform 0.18s;pointer-events:none;z-index:500;white-space:nowrap}
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* Pod header (in episode view) */
+#pod-header{display:none;padding:0 16px 10px;flex-shrink:0}
+#pod-header.on{display:block}
+.ph-row{display:flex;align-items:flex-start;gap:12px}
+.ph-art{width:56px;height:56px;border-radius:12px;object-fit:cover;background:var(--s3);flex-shrink:0}
+.ph-info{flex:1;min-width:0}
+.ph-name{font-size:14px;font-weight:700;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.ph-count{font-size:12px;color:var(--dim);margin-top:2px}
+.ph-desc{font-size:12px;color:var(--dim);margin-top:8px;line-height:1.4;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+
+/* Episode detail sheet */
+#ep-sheet{position:fixed;inset:0;background:rgba(0,0,0,0);z-index:300;display:flex;align-items:flex-end;pointer-events:none;transition:background 0.22s}
+#ep-sheet.on{background:rgba(0,0,0,0.6);pointer-events:all}
+.eps-inner{width:100%;background:var(--s1);border-radius:24px 24px 0 0;max-height:82vh;display:flex;flex-direction:column;transform:translateY(100%);transition:transform 0.32s cubic-bezier(0.32,0.72,0,1)}
+#ep-sheet.on .eps-inner{transform:translateY(0)}
+.eps-topbar{display:flex;align-items:center;justify-content:center;padding:14px 16px 6px;flex-shrink:0;position:relative}
+.eps-drag{width:40px;height:5px;background:var(--border);border-radius:3px}
+.eps-close{position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--dim);font-size:24px;padding:4px 8px;cursor:pointer;line-height:1}
+.eps-scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:0 16px 8px}
+.eps-hero{display:flex;gap:14px;margin-bottom:12px;align-items:flex-start}
+.eps-art{width:80px;height:80px;border-radius:14px;object-fit:cover;background:var(--s3);flex-shrink:0}
+.eps-hero-info{flex:1;min-width:0}
+.eps-title{font-size:16px;font-weight:800;line-height:1.3;margin-bottom:3px}
+.eps-show{font-size:13px;color:var(--orange);margin-bottom:4px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.eps-meta-line{font-size:12px;color:var(--dim)}
+.eps-desc{font-size:13px;color:var(--text);line-height:1.6;margin-top:12px}
+.eps-actions{display:flex;gap:10px;padding:14px 16px;padding-bottom:calc(env(safe-area-inset-bottom,0px) + 14px);flex-shrink:0}
+.eps-play{flex:1;background:var(--orange);border:none;border-radius:16px;color:#000;font-size:16px;font-weight:800;padding:18px;cursor:pointer}
+.eps-play:active{opacity:0.8}
+.eps-q{background:var(--s2);border:none;border-radius:16px;color:var(--orange);font-size:15px;font-weight:700;padding:18px 20px;cursor:pointer;white-space:nowrap}
+.eps-q:active{opacity:0.7}
 </style>
 </head>
 <body>
@@ -231,6 +263,17 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
     <div class="vhead">
       <button class="back-btn" id="ep-back">‹</button>
       <h2 id="ep-show-name"></h2>
+    </div>
+    <div id="pod-header">
+      <div class="ph-row">
+        <img class="ph-art" id="ph-art" src="" alt="">
+        <div class="ph-info">
+          <div class="ph-name" id="ph-name"></div>
+          <div class="ph-count" id="ph-count"></div>
+          <button class="sub-btn" id="ph-sub-btn" onclick="toggleSubFromHeader()">Subscribe</button>
+        </div>
+      </div>
+      <div class="ph-desc" id="ph-desc"></div>
     </div>
     <div class="filter-row">
       <input id="ep-filter" type="text" inputmode="search" placeholder="Filter episodes…" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false">
@@ -369,6 +412,30 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
   </div>
 </div>
 
+<div id="ep-sheet">
+  <div class="eps-inner">
+    <div class="eps-topbar">
+      <div class="eps-drag"></div>
+      <button class="eps-close" id="eps-close">×</button>
+    </div>
+    <div class="eps-scroll">
+      <div class="eps-hero">
+        <img class="eps-art" id="eps-art" src="" alt="">
+        <div class="eps-hero-info">
+          <div class="eps-title" id="eps-title"></div>
+          <div class="eps-show" id="eps-show"></div>
+          <div class="eps-meta-line" id="eps-meta"></div>
+        </div>
+      </div>
+      <div class="eps-desc" id="eps-desc"></div>
+    </div>
+    <div class="eps-actions">
+      <button class="eps-play" id="eps-play">▶ Play</button>
+      <button class="eps-q" id="eps-add-q">+ Queue</button>
+    </div>
+  </div>
+</div>
+
 <div id="toast"></div>
 <audio id="audio-el"></audio>
 
@@ -392,6 +459,11 @@ let audio = document.getElementById('audio-el');
 let scrubbing = false;
 let currentView = 'library';
 let episodePodcastId = null;
+let browseCache = {};       // temp feed cache for unsubscribed shows (not persisted)
+let currentBrowsePod = null; // { id, name, art, feedUrl, desc } for current episode view
+let episodeSourceView = 'library'; // which tab to return to on back
+let sheetEp = null;         // episode open in detail sheet
+let lastSearchResults = []; // cache of last iTunes search results
 
 function load() {
   try { const d = localStorage.getItem(STORE_KEY); return d ? {...DEF, ...JSON.parse(d)} : {...DEF}; }
@@ -399,6 +471,10 @@ function load() {
 }
 function save() {
   try { localStorage.setItem(STORE_KEY, JSON.stringify(S)); } catch {}
+}
+
+function getEps(podId) {
+  return S.lib[podId] || browseCache[podId] || [];
 }
 
 // ── Utils ─────────────────────────────────────────────────────────────────────
@@ -453,7 +529,7 @@ function nav(view) {
   else if (view === 'waypoints') renderWaypoints();
 }
 
-document.getElementById('ep-back').addEventListener('click', () => nav('library'));
+document.getElementById('ep-back').addEventListener('click', () => nav(episodeSourceView));
 document.getElementById('lib-filter').addEventListener('input', () => renderLibrary());
 document.getElementById('ep-filter').addEventListener('input', () => { if (episodePodcastId) renderEps(episodePodcastId); });
 
@@ -476,17 +552,18 @@ async function doSearch() {
 }
 
 function renderSearch(results) {
+  lastSearchResults = results;
   const el = document.getElementById('search-results');
   if (!results.length) { el.innerHTML = '<div class="empty"><p>No results found.</p></div>'; return; }
   el.innerHTML = results.map(p => {
     const subbed = S.subs.some(s => s.id === p.collectionId);
-    return `<div class="pod-card">
+    return `<div class="pod-card" onclick="openPodFromSearch(${p.collectionId},event)" style="cursor:pointer">
       <img class="pod-art" src="${esc(p.artworkUrl100)}" alt="" loading="lazy">
       <div class="pod-info">
         <div class="pod-name">${esc(p.collectionName)}</div>
         <div class="pod-desc">${esc(p.artistName||'')}</div>
         <button class="sub-btn${subbed?' done':''}"
-          onclick="toggleSub(${p.collectionId},'${q(p.collectionName)}','${q(p.artworkUrl600||p.artworkUrl100||'')}','${q(p.feedUrl||'')}','${q(p.artistName||'')}',this)">
+          onclick="event.stopPropagation();toggleSub(${p.collectionId},'${q(p.collectionName)}','${q(p.artworkUrl600||p.artworkUrl100||'')}','${q(p.feedUrl||'')}','${q(p.artistName||'')}',this)">
           ${subbed ? 'Subscribed' : '+ Subscribe'}
         </button>
       </div>
@@ -494,21 +571,36 @@ function renderSearch(results) {
   }).join('');
 }
 
+function openPodFromSearch(collectionId, e) {
+  if (e.target.closest('.sub-btn')) return;
+  const p = lastSearchResults.find(r => r.collectionId === collectionId);
+  if (!p) return;
+  showEpisodes(p.collectionId, {
+    id: p.collectionId,
+    name: p.collectionName,
+    art: p.artworkUrl600 || p.artworkUrl100 || '',
+    feedUrl: p.feedUrl || '',
+    desc: p.artistName || '',
+  });
+}
+
 function toggleSub(id, name, art, feedUrl, desc, btn) {
   const i = S.subs.findIndex(s => s.id === id);
   if (i > -1) {
     S.subs.splice(i, 1);
-    btn.textContent = '+ Subscribe';
-    btn.classList.remove('done');
+    if (btn) { btn.textContent = '+ Subscribe'; btn.classList.remove('done'); }
     toast('Unsubscribed');
   } else {
     S.subs.push({ id, name, art, feedUrl, desc });
-    btn.textContent = 'Subscribed';
-    btn.classList.add('done');
+    // Promote browse cache to persisted lib if available
+    if (browseCache[id]) { S.lib[id] = browseCache[id]; delete browseCache[id]; }
+    else if (!S.lib[id]?.length) fetchFeed(id, feedUrl, { name, art });
+    if (btn) { btn.textContent = 'Subscribed'; btn.classList.add('done'); }
     toast('Subscribed!');
-    if (!S.lib[id]?.length) fetchFeed(id, feedUrl);
   }
   save();
+  renderLibrary();
+  if (episodePodcastId === id) renderPodHeader(id);
 }
 
 // ── Library ───────────────────────────────────────────────────────────────────
@@ -536,25 +628,51 @@ function renderLibrary() {
 }
 
 // ── Episodes ──────────────────────────────────────────────────────────────────
-function showEpisodes(podId) {
+function showEpisodes(podId, podMeta) {
   episodePodcastId = podId;
+  episodeSourceView = podMeta ? 'search' : 'library';
+  currentBrowsePod = podMeta || S.subs.find(s => s.id === podId) || null;
   document.getElementById('ep-filter').value = '';
   document.getElementById('v-episodes').style.transform = '';
   document.getElementById('v-episodes').style.transition = '';
-  const pod = S.subs.find(s => s.id === podId);
-  document.getElementById('ep-show-name').textContent = pod?.name || '';
+  document.getElementById('ep-show-name').textContent = currentBrowsePod?.name || '';
   currentView = 'episodes';
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('on'));
   document.getElementById('v-episodes').classList.add('active');
 
+  renderPodHeader(podId);
+
+  const eps = getEps(podId);
   const el = document.getElementById('ep-list');
-  if (S.lib[podId]?.length) {
+  if (eps.length) {
     renderEps(podId);
   } else {
     el.innerHTML = '<div class="loading-msg">Loading episodes…</div>';
-    fetchFeed(podId, pod?.feedUrl).then(() => renderEps(podId));
+    const persist = S.subs.some(s => s.id === podId);
+    fetchFeed(podId, currentBrowsePod?.feedUrl, currentBrowsePod || {}, persist).then(() => renderEps(podId));
   }
+}
+
+function renderPodHeader(podId) {
+  const pod = currentBrowsePod;
+  if (!pod) { document.getElementById('pod-header').classList.remove('on'); return; }
+  const subbed = S.subs.some(s => s.id === podId);
+  document.getElementById('ph-art').src = pod.art || '';
+  document.getElementById('ph-name').textContent = pod.name || '';
+  const eps = getEps(podId);
+  document.getElementById('ph-count').textContent = eps.length ? `${eps.length} episodes` : '';
+  document.getElementById('ph-desc').textContent = pod.desc || '';
+  const btn = document.getElementById('ph-sub-btn');
+  btn.textContent = subbed ? 'Subscribed' : '+ Subscribe';
+  btn.className = 'sub-btn' + (subbed ? ' done' : '');
+  document.getElementById('pod-header').classList.add('on');
+}
+
+function toggleSubFromHeader() {
+  if (!currentBrowsePod) return;
+  const p = currentBrowsePod;
+  toggleSub(p.id, p.name, p.art, p.feedUrl, p.desc, null);
 }
 
 async function proxyFetch(feedUrl) {
@@ -585,18 +703,27 @@ async function proxyFetch(feedUrl) {
   return Promise.any(proxies.map(p => tryProxy(p)));
 }
 
-async function fetchFeed(podId, feedUrl) {
+async function fetchFeed(podId, feedUrl, podMeta = {}, persist = true) {
   if (!feedUrl) return;
   try {
     const text = await proxyFetch(feedUrl);
     const xml = new DOMParser().parseFromString(text, 'text/xml');
-    const pod = S.subs.find(s => s.id === podId);
+    const pod = S.subs.find(s => s.id === podId) || podMeta;
+    const itns = 'http://www.itunes.com/dtds/podcast-1.0.dtd';
+    // Parse channel-level description for the pod header
+    const ch = xml.querySelector('channel');
+    if (ch && currentBrowsePod?.id === podId) {
+      const rawChDesc = (ch.getElementsByTagNameNS('http://purl.org/rss/1.0/modules/content/','encoded')[0]
+        || ch.getElementsByTagNameNS(itns,'summary')[0]
+        || Array.from(ch.children).find(n => n.localName === 'description'))?.textContent?.trim() || '';
+      const chDesc = rawChDesc.replace(/<[^>]*>/g,' ').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&#39;/g,"'").replace(/&nbsp;/g,' ').replace(/\s+/g,' ').trim();
+      if (chDesc) document.getElementById('ph-desc').textContent = chDesc;
+    }
     const items = xml.querySelectorAll('item');
     const eps = Array.from(items).slice(0, 60).map((item, i) => {
       const enc = item.querySelector('enclosure');
       const audioUrl = enc?.getAttribute('url') || '';
       if (!audioUrl) return null;
-      const itns = 'http://www.itunes.com/dtds/podcast-1.0.dtd';
       const itunesImg = item.getElementsByTagNameNS(itns, 'image')[0];
       const art = itunesImg?.getAttribute('href') || pod?.art || '';
       const dur = item.getElementsByTagNameNS(itns, 'duration')[0]?.textContent ||
@@ -618,8 +745,12 @@ async function fetchFeed(podId, feedUrl) {
         desc,
       };
     }).filter(Boolean);
-    S.lib[podId] = eps;
-    save();
+    if (persist) { S.lib[podId] = eps; save(); }
+    else { browseCache[podId] = eps; }
+    // Update episode count in header now that we have data
+    if (currentBrowsePod?.id === podId) {
+      document.getElementById('ph-count').textContent = `${eps.length} episodes`;
+    }
   } catch(e) {
     console.error('Feed error', e);
     document.getElementById('ep-list').innerHTML = '<div class="empty"><p>Couldn\'t load episodes. Check your connection and try again.</p></div>';
@@ -627,7 +758,7 @@ async function fetchFeed(podId, feedUrl) {
 }
 
 function renderEps(podId) {
-  const allEps = S.lib[podId] || [];
+  const allEps = getEps(podId);
   const el = document.getElementById('ep-list');
   if (!allEps.length) { el.innerHTML = '<div class="empty"><p>No episodes found.</p></div>'; return; }
   const fq = document.getElementById('ep-filter').value.trim().toLowerCase();
@@ -650,15 +781,9 @@ function renderEps(podId) {
 
 function tapEpisode(podId, epIdx, e) {
   if (e.target.closest('.add-btn')) return;
-  const ep = (S.lib[podId]||[])[epIdx];
+  const ep = getEps(podId)[epIdx];
   if (!ep) return;
-  if (!S.queue.some(q => q.id === ep.id)) S.queue.push({...ep});
-  S.qi = S.queue.findIndex(q => q.id === ep.id);
-  S.pos = S.positions[ep.id] || 0;
-  loadTrack(true);
-  save();
-  renderEps(podId);
-  updateMini();
+  openEpSheet(ep);
 }
 
 let qsEp = null;
@@ -676,6 +801,49 @@ function hideQueueSheet() {
 
 queueSheet.addEventListener('click', e => { if (e.target === queueSheet) hideQueueSheet(); });
 document.getElementById('qs-cancel').addEventListener('click', hideQueueSheet);
+
+// ── Episode detail sheet ───────────────────────────────────────────────────────
+const epSheet = document.getElementById('ep-sheet');
+
+function openEpSheet(ep) {
+  sheetEp = ep;
+  document.getElementById('eps-art').src = ep.art || '';
+  document.getElementById('eps-title').textContent = ep.title;
+  document.getElementById('eps-show').textContent = ep.podName;
+  const meta = [ep.epNum ? `Ep ${ep.epNum}` : '', ep.date, ep.dur ? ft(ep.dur) : ''].filter(Boolean).join(' · ');
+  document.getElementById('eps-meta').textContent = meta;
+  document.getElementById('eps-desc').textContent = ep.desc || 'No show notes available.';
+  epSheet.classList.add('on');
+}
+
+function closeEpSheet() {
+  epSheet.classList.remove('on');
+  sheetEp = null;
+}
+
+epSheet.addEventListener('click', e => { if (e.target === epSheet) closeEpSheet(); });
+document.getElementById('eps-close').addEventListener('click', closeEpSheet);
+
+document.getElementById('eps-play').addEventListener('click', () => {
+  if (!sheetEp) return;
+  const ep = sheetEp;
+  closeEpSheet();
+  if (!S.queue.some(q => q.id === ep.id)) S.queue.push({...ep});
+  S.qi = S.queue.findIndex(q => q.id === ep.id);
+  S.pos = S.positions[ep.id] || 0;
+  loadTrack(true);
+  save();
+  if (episodePodcastId !== null) renderEps(episodePodcastId);
+  updateMini();
+  openPlayer();
+});
+
+document.getElementById('eps-add-q').addEventListener('click', () => {
+  if (!sheetEp) return;
+  const ep = sheetEp;
+  closeEpSheet();
+  showQueueSheet(ep);
+});
 
 document.getElementById('qs-next').addEventListener('click', () => {
   if (!qsEp) return;
@@ -713,7 +881,7 @@ function removeFromQueue(ep) {
 
 function addToQueue(podId, epIdx, e) {
   if (e) e.stopPropagation();
-  const ep = (S.lib[podId]||[])[epIdx];
+  const ep = getEps(podId)[epIdx];
   if (!ep) return;
   if (S.queue.some(q => q.id === ep.id)) { removeFromQueue(ep); return; }
   showQueueSheet(ep);
@@ -886,7 +1054,7 @@ function endEpSwipe(e) {
   vEp.style.transition = 'transform 0.32s cubic-bezier(0.32,0.72,0,1)';
   if (dx > window.innerWidth * 0.3 || vel > 0.4) {
     vEp.style.transform = 'translateX(100%)';
-    setTimeout(() => { vEp.style.transform = ''; vEp.style.transition = ''; nav('library'); }, 320);
+    setTimeout(() => { vEp.style.transform = ''; vEp.style.transition = ''; nav(episodeSourceView); }, 320);
   } else {
     vEp.style.transform = '';
     setTimeout(() => { vEp.style.transition = ''; }, 320);
@@ -925,9 +1093,10 @@ epScrollEl.addEventListener('touchend', async () => {
   ptr = null;
   if (!triggered) { ptrIndicator.classList.remove('visible'); return; }
   ptrIndicator.textContent = '⟳ Refreshing…';
-  const pod = S.subs.find(s => s.id === episodePodcastId);
+  const pod = currentBrowsePod;
   if (pod) {
-    await fetchFeed(episodePodcastId, pod.feedUrl);
+    const persist = S.subs.some(s => s.id === episodePodcastId);
+    await fetchFeed(episodePodcastId, pod.feedUrl, pod, persist);
     renderEps(episodePodcastId);
   }
   ptrIndicator.classList.remove('visible');
