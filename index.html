@@ -494,6 +494,8 @@ function renderLibrary() {
 function showEpisodes(podId) {
   episodePodcastId = podId;
   document.getElementById('ep-filter').value = '';
+  document.getElementById('v-episodes').style.transform = '';
+  document.getElementById('v-episodes').style.transition = '';
   const pod = S.subs.find(s => s.id === podId);
   document.getElementById('ep-show-name').textContent = pod?.name || '';
   currentView = 'episodes';
@@ -753,6 +755,51 @@ function finishQDrag() {
 }
 qList.addEventListener('touchend', finishQDrag, { passive: true });
 qList.addEventListener('touchcancel', finishQDrag, { passive: true });
+
+// ── Swipe-to-go-back (episodes → library) ────────────────────────────────────
+let epSwipe = null;
+const vEp = document.getElementById('v-episodes');
+
+vEp.addEventListener('touchstart', e => {
+  if (e.touches[0].clientX > 50) return;
+  epSwipe = { startX: e.touches[0].clientX, startY: e.touches[0].clientY, lastX: e.touches[0].clientX, lastT: Date.now(), vel: 0, active: false };
+  vEp.style.transition = 'none';
+}, { passive: true });
+
+vEp.addEventListener('touchmove', e => {
+  if (!epSwipe) return;
+  const dx = e.touches[0].clientX - epSwipe.startX;
+  const dy = Math.abs(e.touches[0].clientY - epSwipe.startY);
+  if (!epSwipe.active) {
+    if (Math.abs(dx) < 8) return;
+    if (dy > Math.abs(dx) || dx < 0) { epSwipe = null; vEp.style.transition = ''; return; }
+    epSwipe.active = true;
+  }
+  vEp.style.transform = `translateX(${Math.max(0, dx)}px)`;
+  const dt = Date.now() - epSwipe.lastT;
+  epSwipe.vel = dt > 0 ? (e.touches[0].clientX - epSwipe.lastX) / dt : 0;
+  epSwipe.lastX = e.touches[0].clientX;
+  epSwipe.lastT = Date.now();
+}, { passive: true });
+
+function endEpSwipe(e) {
+  if (!epSwipe) return;
+  const didSwipe = epSwipe.active;
+  const dx = didSwipe ? (e.changedTouches[0].clientX - epSwipe.startX) : 0;
+  const vel = epSwipe.vel;
+  epSwipe = null;
+  if (!didSwipe) { vEp.style.transition = ''; return; }
+  vEp.style.transition = 'transform 0.32s cubic-bezier(0.32,0.72,0,1)';
+  if (dx > window.innerWidth * 0.3 || vel > 0.4) {
+    vEp.style.transform = 'translateX(100%)';
+    setTimeout(() => { vEp.style.transform = ''; vEp.style.transition = ''; nav('library'); }, 320);
+  } else {
+    vEp.style.transform = '';
+    setTimeout(() => { vEp.style.transition = ''; }, 320);
+  }
+}
+vEp.addEventListener('touchend', endEpSwipe, { passive: true });
+vEp.addEventListener('touchcancel', endEpSwipe, { passive: true });
 
 // ── Audio ─────────────────────────────────────────────────────────────────────
 function loadTrack(play = false) {
