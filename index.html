@@ -126,7 +126,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
 .art-wrap{width:min(280px,72vw);height:min(280px,72vw);margin:0 auto 10px;overflow:hidden;border-radius:20px;flex-shrink:0;position:relative}
 .art-slider{display:flex;width:200%;height:100%;will-change:transform}
 #fp-art{width:50%;height:100%;border-radius:20px;object-fit:cover;background:var(--s3);flex-shrink:0;user-select:none;-webkit-user-drag:none;touch-action:none;display:block}
-#fp-notes{width:50%;height:100%;background:var(--s2);border-radius:20px;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:14px;box-sizing:border-box;font-size:13px;color:var(--text);line-height:1.6;flex-shrink:0}
+#fp-notes{width:50%;height:100%;background:var(--s2);border-radius:20px;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;padding:14px;box-sizing:border-box;font-size:13px;color:var(--text);line-height:1.6;flex-shrink:0;word-break:break-word;overflow-wrap:break-word}
 .art-dots{display:flex;gap:7px;justify-content:center;margin-bottom:18px;flex-shrink:0}
 .art-dot{width:6px;height:6px;border-radius:50%;background:var(--muted);transition:background 0.2s,transform 0.2s}
 .art-dot.on{background:var(--orange);transform:scale(1.25)}
@@ -1323,7 +1323,9 @@ function setArtPanel(showNotes, animate = true) {
 
 artWrap.addEventListener('touchstart', e => {
   artSwipe = { startX: e.touches[0].clientX, startY: e.touches[0].clientY, active: false };
+  // Snap to correct position immediately — prevents freezing mid-transition if user touches during animation
   artSlider.style.transition = 'none';
+  artSlider.style.transform = showingNotes ? `translateX(-${artWrap.offsetWidth}px)` : 'translateX(0)';
 }, { passive: true });
 
 artWrap.addEventListener('touchmove', e => {
@@ -1332,7 +1334,11 @@ artWrap.addEventListener('touchmove', e => {
   const dy = Math.abs(e.touches[0].clientY - artSwipe.startY);
   if (!artSwipe.active) {
     if (Math.abs(dx) < 8 && dy < 8) return;
-    if (dy > Math.abs(dx)) { artSwipe = null; artSlider.style.transition = ''; return; }
+    // Require clear horizontal intent; in notes panel be stricter to allow vertical scroll
+    if (dy > Math.abs(dx) * (showingNotes ? 0.6 : 1)) {
+      artSwipe = null;
+      return;
+    }
     artSwipe.active = true;
   }
   const base = showingNotes ? -artWrap.offsetWidth : 0;
@@ -1341,7 +1347,7 @@ artWrap.addEventListener('touchmove', e => {
 }, { passive: true });
 
 artWrap.addEventListener('touchend', e => {
-  if (!artSwipe?.active) { artSwipe = null; artSlider.style.transition = ''; return; }
+  if (!artSwipe?.active) { artSwipe = null; setArtPanel(showingNotes, false); return; }
   const dx = e.changedTouches[0].clientX - artSwipe.startX;
   artSwipe = null;
   const threshold = artWrap.offsetWidth * 0.25;
