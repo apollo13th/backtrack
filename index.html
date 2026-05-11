@@ -178,6 +178,18 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
 /* Queue meta */
 .q-meta{font-size:10px;color:var(--muted);overflow:hidden;white-space:nowrap;text-overflow:ellipsis;margin-top:1px}
 
+/* Queue action sheet */
+#queue-sheet{position:fixed;inset:0;background:rgba(0,0,0,0);z-index:400;display:flex;align-items:flex-end;pointer-events:none;transition:background 0.22s}
+#queue-sheet.on{background:rgba(0,0,0,0.55);pointer-events:all}
+.qs-inner{width:100%;padding:12px 12px calc(env(safe-area-inset-bottom,0px) + 12px);display:flex;flex-direction:column;gap:10px;transform:translateY(100%);transition:transform 0.3s cubic-bezier(0.32,0.72,0,1)}
+#queue-sheet.on .qs-inner{transform:translateY(0)}
+.qs-title{font-size:12px;color:var(--dim);text-align:center;padding:0 16px 4px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.qs-btn{background:var(--s2);border:none;border-radius:16px;color:var(--text);font-size:17px;font-weight:600;padding:18px;cursor:pointer;text-align:center;width:100%}
+.qs-btn:active{opacity:0.7}
+.qs-btn.primary{color:var(--orange)}
+.qs-cancel{background:var(--s1);border:none;border-radius:16px;color:var(--dim);font-size:17px;font-weight:600;padding:18px;cursor:pointer;text-align:center;width:100%}
+.qs-cancel:active{opacity:0.7}
+
 /* Toast */
 #toast{position:fixed;bottom:100px;left:50%;transform:translateX(-50%) translateY(12px);background:var(--s2);border:1px solid var(--border);border-radius:22px;padding:10px 20px;font-size:13px;font-weight:700;color:var(--text);opacity:0;transition:opacity 0.18s,transform 0.18s;pointer-events:none;z-index:500;white-space:nowrap}
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
@@ -330,6 +342,15 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
     <button class="wp-action" id="fp-sleep-btn">⏾ Sleep</button>
   </div>
   </div><!-- #fp-inner -->
+</div>
+
+<div id="queue-sheet">
+  <div class="qs-inner">
+    <div class="qs-title" id="qs-title"></div>
+    <button class="qs-btn primary" id="qs-next">▶ Play Next</button>
+    <button class="qs-btn" id="qs-end">+ Add to End</button>
+    <button class="qs-cancel" id="qs-cancel">Cancel</button>
+  </div>
 </div>
 
 <div id="toast"></div>
@@ -621,16 +642,46 @@ function tapEpisode(podId, epIdx, e) {
   updateMini();
 }
 
+let qsEp = null;
+const queueSheet = document.getElementById('queue-sheet');
+
+function showQueueSheet(ep) {
+  qsEp = ep;
+  document.getElementById('qs-title').textContent = ep.title;
+  queueSheet.classList.add('on');
+}
+function hideQueueSheet() {
+  queueSheet.classList.remove('on');
+  qsEp = null;
+}
+
+queueSheet.addEventListener('click', e => { if (e.target === queueSheet) hideQueueSheet(); });
+document.getElementById('qs-cancel').addEventListener('click', hideQueueSheet);
+
+document.getElementById('qs-next').addEventListener('click', () => {
+  if (!qsEp) return;
+  const ep = qsEp; hideQueueSheet();
+  S.queue.splice(S.qi + 1, 0, {...ep});
+  save(); updateMini();
+  if (episodePodcastId !== null) renderEps(episodePodcastId);
+  toast('Playing next');
+});
+
+document.getElementById('qs-end').addEventListener('click', () => {
+  if (!qsEp) return;
+  const ep = qsEp; hideQueueSheet();
+  S.queue.push({...ep});
+  save(); updateMini();
+  if (episodePodcastId !== null) renderEps(episodePodcastId);
+  toast('Added to end');
+});
+
 function addToQueue(podId, epIdx, e) {
   if (e) e.stopPropagation();
   const ep = (S.lib[podId]||[])[epIdx];
   if (!ep) return;
   if (S.queue.some(q => q.id === ep.id)) { toast('Already in queue'); return; }
-  S.queue.push({...ep});
-  save();
-  updateMini();
-  renderEps(podId);
-  toast('Added to queue');
+  showQueueSheet(ep);
 }
 
 // ── Queue ─────────────────────────────────────────────────────────────────────
