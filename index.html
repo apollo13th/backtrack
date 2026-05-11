@@ -202,7 +202,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
 <div id="app">
 
   <!-- SEARCH VIEW -->
-  <div id="v-search" class="view active">
+  <div id="v-search" class="view">
     <div class="vhead"><h1>Backtrack</h1></div>
     <div class="search-row">
       <input id="search-input" type="search" placeholder="Search podcasts…" autocomplete="off" autocorrect="off" spellcheck="false" inputmode="search">
@@ -214,7 +214,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
   </div>
 
   <!-- LIBRARY VIEW -->
-  <div id="v-library" class="view">
+  <div id="v-library" class="view active">
     <div class="vhead"><h1>Library</h1></div>
     <div class="filter-row">
       <input id="lib-filter" type="text" inputmode="search" placeholder="Filter library…" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false">
@@ -272,11 +272,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
 
   <!-- TAB BAR -->
   <div id="tab-bar">
-    <button class="tab on" data-v="search">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-      Search
-    </button>
-    <button class="tab" data-v="library">
+    <button class="tab on" data-v="library">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
       Library
     </button>
@@ -287,6 +283,10 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
     <button class="tab" data-v="waypoints">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg>
       Waypoints
+    </button>
+    <button class="tab" data-v="search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      Search
     </button>
   </div>
 
@@ -378,7 +378,7 @@ const DEF = {
 let S = load();
 let audio = document.getElementById('audio-el');
 let scrubbing = false;
-let currentView = 'search';
+let currentView = 'library';
 let episodePodcastId = null;
 
 function load() {
