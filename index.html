@@ -464,6 +464,9 @@ let currentBrowsePod = null; // { id, name, art, feedUrl, desc } for current epi
 let episodeSourceView = 'library'; // which tab to return to on back
 let sheetEp = null;         // episode open in detail sheet
 let lastSearchResults = []; // cache of last iTunes search results
+let libSubView = 'list';    // 'list' | 'episodes' — last active library sub-view
+let savedEpScrollTop = 0;   // ep-list scroll position across tab switches
+let savedLibScrollTop = 0;  // library-list scroll position across tab switches
 
 function load() {
   try { const d = localStorage.getItem(STORE_KEY); return d ? {...DEF, ...JSON.parse(d)} : {...DEF}; }
@@ -516,20 +519,48 @@ document.querySelectorAll('.tab').forEach(t => {
 });
 
 function nav(view) {
-  if (view === currentView && view !== 'episodes') return;
+  // Save scroll positions before leaving current view
+  if (currentView === 'episodes') savedEpScrollTop = document.getElementById('ep-list').scrollTop;
+  if (currentView === 'library') savedLibScrollTop = document.getElementById('library-list').scrollTop;
+
+  // Library tab: restore last library sub-view instead of always going to list
+  if (view === 'library') {
+    // Already in library context — nothing to do
+    if (currentView === 'library' || (currentView === 'episodes' && episodeSourceView === 'library')) return;
+    // Restore episode view if that's where we left off in the library
+    if (libSubView === 'episodes' && episodePodcastId !== null) {
+      currentView = 'episodes';
+      document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+      document.querySelectorAll('.tab').forEach(t => t.classList.toggle('on', t.dataset.v === 'library'));
+      document.getElementById('v-episodes').classList.add('active');
+      requestAnimationFrame(() => { document.getElementById('ep-list').scrollTop = savedEpScrollTop; });
+      return;
+    }
+    // Otherwise show the library list and restore its scroll
+    currentView = 'library';
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    document.querySelectorAll('.tab').forEach(t => t.classList.toggle('on', t.dataset.v === 'library'));
+    document.getElementById('v-library').classList.add('active');
+    renderLibrary();
+    requestAnimationFrame(() => { document.getElementById('library-list').scrollTop = savedLibScrollTop; });
+    return;
+  }
+
+  if (view === currentView) return;
   currentView = view;
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('on', t.dataset.v === view));
-
-  const map = { search: 'v-search', library: 'v-library', episodes: 'v-episodes', queue: 'v-queue', waypoints: 'v-waypoints' };
+  const map = { search: 'v-search', queue: 'v-queue', waypoints: 'v-waypoints' };
   document.getElementById(map[view])?.classList.add('active');
-
-  if (view === 'library') renderLibrary();
-  else if (view === 'queue') renderQueue();
+  if (view === 'queue') renderQueue();
   else if (view === 'waypoints') renderWaypoints();
 }
 
-document.getElementById('ep-back').addEventListener('click', () => nav(episodeSourceView));
+document.getElementById('ep-back').addEventListener('click', () => {
+  // Explicit back always goes to the list, not restoring episode context
+  libSubView = 'list';
+  nav(episodeSourceView);
+});
 document.getElementById('lib-filter').addEventListener('input', () => renderLibrary());
 document.getElementById('ep-filter').addEventListener('input', () => { if (episodePodcastId) renderEps(episodePodcastId); });
 
@@ -637,8 +668,9 @@ function showEpisodes(podId, podMeta) {
   document.getElementById('v-episodes').style.transition = '';
   document.getElementById('ep-show-name').textContent = currentBrowsePod?.name || '';
   currentView = 'episodes';
+  if (episodeSourceView === 'library') libSubView = 'episodes';
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-  document.querySelectorAll('.tab').forEach(t => t.classList.remove('on'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('on', t.dataset.v === episodeSourceView));
   document.getElementById('v-episodes').classList.add('active');
 
   renderPodHeader(podId);
@@ -1056,7 +1088,7 @@ function endEpSwipe(e) {
   vEp.style.transition = 'transform 0.32s cubic-bezier(0.32,0.72,0,1)';
   if (dx > window.innerWidth * 0.3 || vel > 0.4) {
     vEp.style.transform = 'translateX(100%)';
-    setTimeout(() => { vEp.style.transform = ''; vEp.style.transition = ''; nav(episodeSourceView); }, 320);
+    setTimeout(() => { vEp.style.transform = ''; vEp.style.transition = ''; libSubView = 'list'; nav(episodeSourceView); }, 320);
   } else {
     vEp.style.transform = '';
     setTimeout(() => { vEp.style.transition = ''; }, 320);
