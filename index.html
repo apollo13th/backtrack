@@ -603,7 +603,7 @@ async function fetchFeed(podId, feedUrl) {
                   item.querySelector('duration')?.textContent || '';
       const pub = item.querySelector('pubDate')?.textContent || '';
       const epNum = item.getElementsByTagNameNS(itns, 'episode')[0]?.textContent?.trim() || '';
-      const rawDesc = (item.getElementsByTagNameNS(itns, 'summary')[0] || item.querySelector('description'))?.textContent?.trim() || '';
+      const rawDesc = (item.getElementsByTagNameNS('http://purl.org/rss/1.0/modules/content/','encoded')[0] || item.getElementsByTagNameNS(itns,'summary')[0] || item.querySelector('description'))?.textContent?.trim() || '';
       const desc = rawDesc.replace(/<[^>]*>/g,' ').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&#39;/g,"'").replace(/&nbsp;/g,' ').replace(/\s+/g,' ').trim();
       return {
         id: `${podId}_${i}`,
