@@ -485,15 +485,29 @@ function showEpisodes(podId) {
 }
 
 async function proxyFetch(feedUrl) {
+  // Try direct first — works if the feed host allows CORS
+  try {
+    const r = await fetch(feedUrl, { signal: AbortSignal.timeout(6000) });
+    if (r.ok) return await r.text();
+  } catch {}
+
   const proxies = [
     u => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
     u => `https://corsproxy.io/?${encodeURIComponent(u)}`,
     u => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`,
+    u => `https://thingproxy.freeboard.io/fetch/${u}`,
+    u => `https://api.allorigins.win/get?url=${encodeURIComponent(u)}`,
   ];
   for (const makeUrl of proxies) {
     try {
       const r = await fetch(makeUrl(feedUrl), { signal: AbortSignal.timeout(8000) });
-      if (r.ok) return await r.text();
+      if (!r.ok) continue;
+      const text = await r.text();
+      // allorigins /get returns JSON — unwrap it
+      if (text.startsWith('{') && text.includes('"contents"')) {
+        return JSON.parse(text).contents;
+      }
+      return text;
     } catch {}
   }
   throw new Error('All proxies failed');
