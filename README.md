@@ -10,9 +10,23 @@ Backtrack is a mobile-first podcast player built around recovery-oriented listen
 
 ---
 
+## Development workflow
+
+No build step is required. Edit `index.html` directly and serve or deploy the static files.
+
+```bash
+git status --short
+```
+
+Keep personal machine paths, account details, and local workflow notes in `PRIVATE_NOTES.md`.
+
 ## Deploy
 
 ```bash
+git status --short
+git add index.html README.md .gitignore
+git commit -m "update"
+git push
 ```
 
 GitHub Pages takes ~1 minute to go live after each push.
