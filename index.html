@@ -543,8 +543,8 @@ function nav(view) {
 
   // Library tab: restore last library sub-view instead of always going to list
   if (view === 'library') {
-    // Already in library context — nothing to do
-    if (currentView === 'library' || (currentView === 'episodes' && episodeSourceView === 'library')) return;
+    // Already in library context and not explicitly navigating to list — nothing to do
+    if (currentView === 'library' || (currentView === 'episodes' && episodeSourceView === 'library' && libSubView !== 'list')) return;
     // Restore episode view if that's where we left off in the library
     if (libSubView === 'episodes' && episodePodcastId !== null) {
       currentView = 'episodes';
