@@ -577,6 +577,21 @@ function esc(s) {
 }
 function q(s) { return String(s||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;'); }
 
+// Decode HTML entities from CDATA-wrapped fields (e.g. &#8217; → ')
+function decodeEntities(s) {
+  if (!s || !s.includes('&')) return s || '';
+  const d = document.createElement('div');
+  d.innerHTML = s;
+  return d.textContent;
+}
+
+// Fast non-cryptographic hash for stable episode IDs
+function hashStr(s) {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = (((h << 5) + h) ^ s.charCodeAt(i)) >>> 0;
+  return h.toString(36);
+}
+
 let toastTimer;
 function toast(msg) {
   const t = document.getElementById('toast');
@@ -862,12 +877,18 @@ async function fetchFeed(podId, feedUrl, podMeta = {}, persist = true) {
       const chaptersNode = item.getElementsByTagNameNS('https://podcastindex.org/namespace/1.0','chapters')[0]
         || Array.from(item.getElementsByTagName('*')).find(n => n.localName === 'chapters' && n.hasAttribute('url'));
       const chaptersUrl = chaptersNode?.getAttribute('url') || '';
+      const rawTitle = item.querySelector('title')?.textContent?.trim() || '';
+      const title = decodeEntities(rawTitle) || `Episode ${i+1}`;
+      // Stable ID: guid → enclosure URL → title+pubDate hash (position-based IDs break after feed refresh)
+      const guid = item.querySelector('guid')?.textContent?.trim() || '';
+      const stableKey = guid || audioUrl || (rawTitle + pub);
+      const id = `${podId}_${hashStr(stableKey)}`;
       return {
-        id: `${podId}_${i}`,
+        id,
         podId,
         podName: pod?.name || '',
         art,
-        title: item.querySelector('title')?.textContent?.trim() || `Episode ${i+1}`,
+        title,
         audioUrl,
         dur: parseDur(dur.trim()),
         date: pub ? new Date(pub).toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'}) : '',
@@ -1047,20 +1068,28 @@ document.getElementById('qs-end').addEventListener('click', () => {
   toast('Added to end');
 });
 
-function removeFromQueue(ep) {
-  const i = S.queue.findIndex(q => q.id === ep.id);
-  if (i === -1) return;
+// Central queue removal — all removal paths funnel through here
+function removeQueueAt(i, opts = {}) {
+  if (i < 0 || i >= S.queue.length) return;
+  const ep = S.queue[i];
   const wasCurrent = i === S.qi;
+  purgeWaypoints(new Set([ep.id]));
   if (wasCurrent) { audio.pause(); audio.src = ''; }
   S.queue.splice(i, 1);
   if (i < S.qi) S.qi--;
   if (S.qi >= S.queue.length) S.qi = Math.max(0, S.queue.length - 1);
   save();
   updateMini();
-  refreshEpAddBtn(ep);
+  if (opts.refreshBtn) refreshEpAddBtn(ep);
   if (!S.queue.length) { document.getElementById('full-player').classList.remove('on'); }
-  else if (wasCurrent) updateFP();
-  toast('Removed from queue');
+  else if (wasCurrent) { updateFP(); if (opts.resumePlay) loadTrack(true); }
+  if (opts.toast) toast('Removed from queue');
+}
+
+function removeFromQueue(ep) {
+  const i = S.queue.findIndex(q => q.id === ep.id);
+  if (i === -1) return;
+  removeQueueAt(i, { refreshBtn: true, toast: true });
 }
 
 function addToQueue(podId, epIdx, e) {
@@ -1096,21 +1125,16 @@ function toggleQueueSelect(i) {
 }
 
 function removeQueueSelected() {
+  // Remove highest indices first so lower indices stay valid
   const indices = Array.from(queueSelected).sort((a, b) => b - a);
-  purgeWaypoints(new Set(indices.map(i => S.queue[i].id)));
-  let removedBeforeCurrent = 0;
-  for (const i of indices) {
-    if (i < S.qi) removedBeforeCurrent++;
-    if (i === S.qi) { audio.pause(); audio.src = ''; }
-    S.queue.splice(i, 1);
-  }
-  S.qi = Math.max(0, S.qi - removedBeforeCurrent);
-  if (S.qi >= S.queue.length) S.qi = Math.max(0, S.queue.length - 1);
-  save();
+  for (const i of indices) removeQueueAt(i);
   queueSelected.clear();
-  if (!S.queue.length) { queueEditMode = false; document.getElementById('queue-edit-btn').textContent = 'Edit'; document.getElementById('queue-edit-bar').classList.remove('visible'); }
+  if (!S.queue.length) {
+    queueEditMode = false;
+    document.getElementById('queue-edit-btn').textContent = 'Edit';
+    document.getElementById('queue-edit-bar').classList.remove('visible');
+  }
   renderQueue();
-  updateMini();
 }
 
 function clearQueue() {
@@ -1163,14 +1187,8 @@ function purgeWaypoints(epIds) {
 function delFromQueue(ev, i) {
   ev.stopPropagation();
   const wasPlaying = !audio.paused;
-  purgeWaypoints(new Set([S.queue[i].id]));
-  if (i === S.qi) { audio.pause(); audio.src = ''; }
-  S.queue.splice(i, 1);
-  if (S.qi >= S.queue.length) S.qi = Math.max(0, S.queue.length - 1);
-  save();
+  removeQueueAt(i, { resumePlay: wasPlaying });
   renderQueue();
-  updateMini();
-  if (!S.queue.length) document.getElementById('full-player').classList.remove('on');
 }
 
 let qDragJustEnded = false;
