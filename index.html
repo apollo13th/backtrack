@@ -765,6 +765,11 @@ function showEpisodes(podId, podMeta) {
   const el = document.getElementById('ep-list');
   if (eps.length) {
     renderEps(podId);
+    // Background refresh if any episode is missing chaptersUrl (schema migration from old cache)
+    const persist = S.subs.some(s => s.id === podId);
+    if (persist && currentBrowsePod?.feedUrl && eps.some(ep => ep.chaptersUrl === undefined)) {
+      fetchFeed(podId, currentBrowsePod.feedUrl, currentBrowsePod, true).then(() => renderEps(podId));
+    }
   } else if (!currentBrowsePod?.feedUrl) {
     el.innerHTML = '<div class="empty"><p>No feed URL available for this podcast.</p></div>';
   } else {
@@ -1617,6 +1622,9 @@ async function fetchJson(url) {
 }
 
 async function loadChapters(ep) {
+  // Queue entries are old copies — look up fresh chaptersUrl from library if missing
+  const chaptersUrl = ep?.chaptersUrl || getEps(ep?.podId)?.find(e => e.id === ep?.id)?.chaptersUrl || '';
+  if (ep && chaptersUrl && !ep.chaptersUrl) ep = { ...ep, chaptersUrl };
   const chDiv = document.getElementById('fp-chapters');
   const dot0 = document.getElementById('art-dot-0');
   if (!ep?.chaptersUrl) {
