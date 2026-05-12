@@ -111,7 +111,6 @@ GitHub Pages takes ~1 minute to go live after each push.
 
 - **`#fp-inner` is `overflow:hidden`** — controls may be clipped on very small screens (iPhone SE). A layout that shrinks gracefully would fix this.
 - **Episode IDs are position-based** — `${podId}_0` always refers to the first item in the feed slice. After a feed refresh, a new episode shifts all IDs; queue entries become stale references.
-- **Empty feed URL** — some iTunes search results have no `feedUrl`; episode view shows "Loading…" indefinitely.
 - **Unsubscribe doesn't clean up `S.lib` cache** — episodes remain in memory and localStorage after unsubscribing.
 - **`.eps-desc` missing word-break** — long URLs in the episode detail sheet can overflow horizontally (same fix needed as was applied to `#fp-notes`).
 - **Mini player title shows raw HTML entities** — e.g. `&#8217;` instead of `'`; needs entity decoding when setting `mini-title` text.
