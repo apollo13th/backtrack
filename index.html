@@ -1648,24 +1648,46 @@ async function fetchJson(url) {
 // Parse ID3v2 CHAP frames from the first 64 KB of an MP3 file
 async function loadChaptersFromId3(audioUrl) {
   if (!audioUrl) return null;
-  try {
-    const r = await fetch(audioUrl, { headers: { Range: 'bytes=0-65535' }, signal: AbortSignal.timeout(20000) });
-    if (!r.ok && r.status !== 206) return null;
-    // Stream and cancel after 64 KB to avoid downloading the whole file
-    const reader = r.body.getReader();
+
+  // Read first MAX bytes from a fetch response, then cancel the stream
+  async function readHead(response) {
+    const MAX = 65536;
+    const reader = response.body.getReader();
     const chunks = [];
     let total = 0;
-    while (total < 65536) {
+    while (total < MAX) {
       const { done, value } = await reader.read();
       if (done) break;
       chunks.push(value);
       total += value.length;
     }
     reader.cancel().catch(() => {});
-    const buf = new Uint8Array(total);
+    const buf = new Uint8Array(Math.min(total, MAX));
     let off = 0;
-    for (const c of chunks) { buf.set(c, off); off += c.length; }
+    for (const c of chunks) { const take = Math.min(c.length, MAX - off); buf.set(c.slice(0, take), off); off += take; }
+    return buf;
+  }
 
+  let buf;
+  try {
+    // Attempt 1: plain GET — no Range header, no CORS preflight, works on most podcast CDNs.
+    // We stream and cancel after 64 KB so we don't download the whole MP3.
+    const r = await fetch(audioUrl, { signal: AbortSignal.timeout(20000) });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    buf = await readHead(r);
+  } catch {
+    try {
+      // Attempt 2: Range request — faster if server supports it, but needs CORS preflight.
+      const r = await fetch(audioUrl, { headers: { Range: 'bytes=0-65535' }, signal: AbortSignal.timeout(20000) });
+      if (!r.ok && r.status !== 206) return null;
+      buf = await readHead(r);
+    } catch(e) {
+      console.warn('[chapters] ID3 fetch failed', e);
+      return null;
+    }
+  }
+
+  try {
     // Verify ID3 magic
     if (buf[0] !== 0x49 || buf[1] !== 0x44 || buf[2] !== 0x33) return null;
     const ver = buf[3]; // 2=v2.2, 3=v2.3, 4=v2.4
