@@ -230,6 +230,44 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
 .ph-count{font-size:12px;color:var(--dim);margin-top:2px}
 .ph-desc{font-size:12px;color:var(--dim);margin-top:8px;line-height:1.4;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
 
+/* ── Hover states (mouse / trackpad only) ───────────────────────────────── */
+@media (hover: hover) {
+  .lib-card:hover{background:var(--s2)}
+  .q-item:hover:not(.now){background:var(--s2)}
+  .wp-item:hover{background:var(--s2)}
+  .ch-item:hover{background:rgba(255,255,255,0.04);border-radius:6px;margin:0 -4px;padding:9px 8px}
+  .add-btn:hover:not(.in-queue){border-color:var(--orange)}
+  .c-btn:hover{opacity:0.7}
+  .c-play:hover{opacity:0.85}
+  .skip-btn:hover{background:var(--s3)}
+  .spd-btn:hover:not(.on){background:var(--s3);color:var(--text)}
+  .wp-action:hover{opacity:0.8}
+  .tab:hover{color:var(--text)}
+  .art-dot{cursor:pointer}
+  .back-btn:hover{opacity:0.7}
+  .qs-btn:hover,.qs-cancel:hover{opacity:0.8}
+  .eps-play:hover{opacity:0.85}
+  .eps-q:hover{opacity:0.8}
+  .sub-btn:hover{opacity:0.85}
+  .q-drag{cursor:grab}
+  .q-drag:active{cursor:grabbing}
+}
+
+/* ── Desktop two-column layout ──────────────────────────────────────────── */
+@media (min-width: 768px) {
+  body{display:flex;flex-direction:row}
+  #app{width:360px;min-width:360px;flex-shrink:0;border-right:1px solid var(--border);height:100vh}
+  #full-player{position:static!important;display:flex!important;flex:1;height:100vh;transform:none!important;transition:none!important;border-radius:0!important;z-index:auto!important;will-change:auto!important;padding-top:20px}
+  .drag-handle{display:none}
+  #mini-player{display:none!important}
+  #tab-bar{padding-bottom:12px}
+  .art-wrap{width:min(260px,28vw);height:min(260px,28vw)}
+  .scroll-area::-webkit-scrollbar{display:block;width:4px}
+  .scroll-area::-webkit-scrollbar-track{background:transparent}
+  .scroll-area::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+  #prog-track{cursor:ew-resize}
+}
+
 /* Episode detail sheet */
 #ep-sheet{position:fixed;inset:0;background:rgba(0,0,0,0);z-index:300;display:flex;align-items:flex-end;pointer-events:none;transition:background 0.22s}
 #ep-sheet.on{background:rgba(0,0,0,0.6);pointer-events:all}
@@ -486,6 +524,7 @@ const DEF = {
 let S = load();
 let audio = document.getElementById('audio-el');
 let scrubbing = false;
+const isDesktop = () => window.matchMedia('(min-width: 768px)').matches;
 let currentView = 'library';
 let episodePodcastId = null;
 let browseCache = {};       // temp feed cache for unsubscribed shows (not persisted)
@@ -1201,6 +1240,49 @@ function finishQDrag() {
   qd = null;
 }
 qList.addEventListener('touchend', finishQDrag, { passive: true });
+
+// Queue drag via mouse (pointer events, skip touch)
+qList.addEventListener('pointerdown', e => {
+  if (e.pointerType === 'touch') return;
+  const handle = e.target.closest('.q-drag');
+  if (!handle) return;
+  e.preventDefault();
+  const item = handle.closest('.q-item');
+  if (!item) return;
+  const idx = +item.dataset.qi;
+  const rect = item.getBoundingClientRect();
+  const ghost = item.cloneNode(true);
+  Object.assign(ghost.style, {
+    position:'fixed', top:rect.top+'px', left:rect.left+'px',
+    width:rect.width+'px', zIndex:'999', opacity:'0.95',
+    pointerEvents:'none', border:'1.5px solid var(--orange)',
+    boxShadow:'0 8px 32px rgba(0,0,0,0.6)', borderRadius:'18px',
+    transform:'scale(1.03)', background:'var(--s3)', margin:'0',
+  });
+  document.body.appendChild(ghost);
+  const ph = document.createElement('div');
+  ph.style.cssText = `height:${rect.height}px;border:2px dashed var(--orange);border-radius:18px;margin-bottom:8px;background:rgba(255,102,0,0.07);flex-shrink:0;box-sizing:border-box;`;
+  item.style.cssText = 'height:0;overflow:hidden;margin:0;padding:0;';
+  item.after(ph);
+  qd = { idx, targetIdx: idx, item, ghost, ph, offsetY: e.clientY - rect.top };
+  function onMove(ev) {
+    if (!qd) return;
+    const y = ev.clientY;
+    qd.ghost.style.top = (y - qd.offsetY) + 'px';
+    const items = Array.from(document.querySelectorAll('#queue-list .q-item')).filter(el => el !== qd.item);
+    let target = 0;
+    items.forEach((el, i) => { if (y > el.getBoundingClientRect().top + el.getBoundingClientRect().height / 2) target = i + 1; });
+    const newTarget = Math.min(Math.max(0, target), items.length);
+    if (newTarget !== qd.targetIdx) {
+      qd.targetIdx = newTarget;
+      if (newTarget >= items.length) items[items.length-1]?.after(qd.ph);
+      else items[newTarget].before(qd.ph);
+    }
+  }
+  function onUp() { finishQDrag(); document.removeEventListener('pointermove', onMove); document.removeEventListener('pointerup', onUp); }
+  document.addEventListener('pointermove', onMove);
+  document.addEventListener('pointerup', onUp);
+});
 qList.addEventListener('touchcancel', finishQDrag, { passive: true });
 
 // ── Swipe-to-go-back (episodes → library) ────────────────────────────────────
@@ -1622,7 +1704,7 @@ artWrap.addEventListener('touchmove', e => {
         artSwipe = null; return;
       }
     } else {
-      if (dy > 0 && dy > Math.abs(dx) * 1.2) {
+      if (!isDesktop() && dy > 0 && dy > Math.abs(dx) * 1.2) {
         artSwipe.active = true; artSwipe.mode = 'dismiss';
       } else if (Math.abs(dx) > Math.abs(dy) * 0.8) {
         artSwipe.active = true; artSwipe.mode = 'carousel';
@@ -1669,6 +1751,42 @@ artWrap.addEventListener('touchend', e => {
     else setCarouselPanel(carouselPanel);
   }
 }, { passive: true });
+
+// Clickable carousel dots
+document.getElementById('art-dot-0').addEventListener('click', () => { if (currentChapters.length) setCarouselPanel(0); });
+document.getElementById('art-dot-1').addEventListener('click', () => setCarouselPanel(1));
+document.getElementById('art-dot-2').addEventListener('click', () => setCarouselPanel(2));
+
+// Carousel mouse drag (pointer events, skip touch — handled above)
+artWrap.addEventListener('pointerdown', e => {
+  if (e.pointerType === 'touch') return;
+  artSwipe = { startX: e.clientX, startY: e.clientY, active: false, mode: 'carousel', onScrollPanel: false };
+  artSlider.style.transition = 'none';
+  artSlider.style.transform = `translateX(${-carouselPanel * artWrap.offsetWidth}px)`;
+  e.preventDefault();
+});
+artWrap.addEventListener('pointermove', e => {
+  if (e.pointerType === 'touch' || !artSwipe) return;
+  const dx = e.clientX - artSwipe.startX;
+  if (!artSwipe.active && Math.abs(dx) > 6) artSwipe.active = true;
+  if (!artSwipe.active) return;
+  const W = artWrap.offsetWidth;
+  const maxX = currentChapters.length ? 0 : -W;
+  artSlider.style.transform = `translateX(${Math.max(-(2*W), Math.min(maxX, -carouselPanel*W + dx))}px)`;
+});
+artWrap.addEventListener('pointerup', e => {
+  if (e.pointerType === 'touch' || !artSwipe) return;
+  const dx = e.clientX - artSwipe.startX;
+  const wasActive = artSwipe.active;
+  artSwipe = null;
+  if (!wasActive) return;
+  const threshold = artWrap.offsetWidth * 0.25;
+  const canLeft = carouselPanel < 2;
+  const canRight = carouselPanel > 0 && (carouselPanel > 1 || currentChapters.length > 0);
+  if (dx < -threshold && canLeft) setCarouselPanel(carouselPanel + 1);
+  else if (dx > threshold && canRight) setCarouselPanel(carouselPanel - 1);
+  else setCarouselPanel(carouselPanel);
+});
 
 // Scrubbing requires deliberate horizontal intent — vertical swipes pass through
 progTrack.addEventListener('touchstart', e => {
@@ -1840,6 +1958,14 @@ function renderWaypoints() {
     </div>`).join('');
 }
 
+// ── Keyboard shortcuts (desktop) ──────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.target.matches('input, textarea, select')) return;
+  if (e.key === ' ') { e.preventDefault(); togglePlay(); }
+  else if (e.key === 'ArrowLeft') { e.preventDefault(); audio.currentTime = Math.max(0, audio.currentTime - 30); }
+  else if (e.key === 'ArrowRight') { e.preventDefault(); audio.currentTime = Math.min(audio.duration || 0, audio.currentTime + 30); }
+});
+
 // ── Restore on load ───────────────────────────────────────────────────────────
 (function init() {
   audio.playbackRate = S.speed;
@@ -1851,13 +1977,13 @@ function renderWaypoints() {
     document.getElementById('fp-art').src = ep.art || '';
     document.getElementById('fp-title').textContent = ep.title;
     document.getElementById('fp-show').textContent = ep.podName;
-    // Restore position display without loading audio (user must tap play)
     const pct = ep.dur ? S.pos / ep.dur * 100 : 0;
     document.getElementById('prog-fill').style.width = pct + '%';
     document.getElementById('prog-thumb').style.left = pct + '%';
     document.getElementById('mini-prog-fill').style.width = pct + '%';
     document.getElementById('t-cur').textContent = ft(S.pos);
     document.getElementById('t-rem').textContent = ep.dur ? '-'+ft(ep.dur - S.pos) : '-0:00';
+    if (isDesktop()) loadChapters(ep);
   }
 })();
 </script>
