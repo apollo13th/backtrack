@@ -139,7 +139,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
 .carousel-btn{display:none;background:none;border:none;color:var(--muted);font-size:30px;cursor:pointer;padding:4px 6px;border-radius:12px;flex-shrink:0;line-height:1;transition:color 0.15s}
 .carousel-btn:disabled{opacity:0.2;cursor:default}
 .art-wrap{width:min(220px,56vw);height:min(220px,56vw);overflow:hidden;border-radius:20px;flex-shrink:0;position:relative}
-.art-slider{display:flex;width:300%;height:100%;will-change:transform}
+.art-slider{display:flex;width:300%;height:100%;will-change:transform;transform:translateX(-33.333%)}
 #fp-chapters{width:33.333%;height:100%;background:var(--s2);border-radius:20px;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;touch-action:pan-y;padding:10px 12px;box-sizing:border-box;flex-shrink:0}
 #fp-art{width:33.333%;height:100%;border-radius:20px;object-fit:cover;background:var(--s3);flex-shrink:0;user-select:none;-webkit-user-drag:none;touch-action:none;display:block}
 #fp-notes{width:33.333%;height:100%;background:var(--s2);border-radius:20px;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;touch-action:pan-y;padding:14px;box-sizing:border-box;font-size:13px;color:var(--text);line-height:1.6;flex-shrink:0;word-break:break-word;overflow-wrap:break-word}
@@ -2230,6 +2230,7 @@ document.addEventListener('keydown', e => {
 (function init() {
   audio.playbackRate = S.speed;
   document.querySelectorAll('.spd-btn').forEach(b => b.classList.toggle('on', parseFloat(b.dataset.s) === S.speed));
+  setCarouselPanel(1, false);
   renderLibrary();
   updateMini();
   if (S.queue[S.qi]) {
