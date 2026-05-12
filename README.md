@@ -78,7 +78,7 @@ GitHub Pages takes ~1 minute to go live after each push.
 | Audio | `<audio id="audio-el">` — HTML5, no Web Audio API |
 | Full player | `position:fixed; transform:translateY(100%)` hidden, `.on` shows it; non-scrolling layout |
 | CORS proxies | Direct fetch first, then `Promise.any()` racing: allorigins.win/raw, corsproxy.io, codetabs.com, thingproxy.freeboard.io, allorigins.win/get |
-| Episode IDs | `${podId}_${index}` — position-based, not stable across feed refreshes |
+| Episode IDs | Stable hash from RSS `guid` → enclosure URL → title+pubDate fallback |
 | Waypoints | Stored with `epId` (not queue index); jump resolves by finding episode in queue by ID |
 | Listened | `S.listened[epId] = true` when playback passes 80% of duration |
 | Position save | Throttled by 5-second bucket (`lastSavedBucket`) — saves once per interval, not multiple times |
@@ -107,6 +107,9 @@ GitHub Pages takes ~1 minute to go live after each push.
 - **Unsubscribe leaving stale data** — `delete S.lib[id]` on unsubscribe; episode data no longer lingers in localStorage
 - **Back button from library episode view broken** — `nav()` early-return blocked explicit back navigation; fixed by checking `libSubView` before returning
 - **Position saving too frequently** — `timeupdate` fired multiple saves per 5-second mark; now uses bucket comparison to save exactly once per interval
+- **Episode IDs shifting after feed refresh** — IDs now use RSS `guid`, then enclosure URL, then title+pubDate hash as fallback
+- **Queue removal paths drifting apart** — row delete, add-button removal, and edit-mode batch removal now share one removal path
+- **Raw HTML entities in feed text** — feed titles and descriptions are decoded after XML extraction
 
 ---
 
@@ -119,8 +122,7 @@ GitHub Pages takes ~1 minute to go live after each push.
 
 ## Known bugs / open issues
 
-- **Episode IDs are position-based** — `${podId}_0` always refers to the first item in the feed slice. After a feed refresh, a new episode shifts all IDs, making saved positions and queue entries stale. Fix: use RSS `guid`, then enclosure URL, then title+pubDate hash as fallback.
-- **Mini player title shows raw HTML entities** — feeds that wrap titles in CDATA (e.g. `<![CDATA[OpenAI&#8217;s Episode]]>`) pass `&#8217;` as literal text rather than the decoded character. Needs HTML entity decoding after `textContent` extraction.
+- None currently tracked.
 
 ---
 
