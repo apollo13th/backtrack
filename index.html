@@ -62,6 +62,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
 /* Episodes */
 .ep-item{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--border);cursor:pointer}
 .ep-item:active{opacity:0.6}
+.ep-listened-dot{width:7px;height:7px;border-radius:50%;background:var(--muted);flex-shrink:0;opacity:0.5}
 .ep-art{width:48px;height:48px;border-radius:8px;object-fit:cover;background:var(--s3);flex-shrink:0}
 .ep-info{flex:1;min-width:0}
 .ep-title{font-size:14px;font-weight:600;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.35}
@@ -466,7 +467,8 @@ const DEF = {
   pos: 0,            // current playback position (seconds)
   positions: {},     // episodeId -> saved position
   speed: 1,
-  waypoints: [],     // [{id,label,qi,pos,epTitle,showName,ts}]
+  waypoints: [],     // [{id,label,epId,pos,epTitle,showName,ts}]
+  listened: {},      // episodeId -> true (played past 80%)
   sessionStart: null // unused, kept for backwards compat
 };
 
@@ -823,12 +825,13 @@ function renderEps(podId) {
   el.innerHTML = eps.map(ep => {
     const i = allEps.indexOf(ep);
     const inQ = S.queue.some(q => q.id === ep.id);
+    const heard = !!S.listened[ep.id];
     return `
     <div class="ep-item" onclick="tapEpisode(${podId},${i},event)">
       <img class="ep-art" src="${esc(ep.art)}" alt="" loading="lazy">
       <div class="ep-info">
         <div class="ep-title">${esc(ep.title)}</div>
-        <div class="ep-meta">${esc(ep.date)}${ep.dur ? ' · '+ft(ep.dur) : ''}</div>
+        <div class="ep-meta">${esc(ep.date)}${ep.dur ? ' · '+ft(ep.dur) : ''}${heard ? ' · listened' : ''}</div>
       </div>
       <button class="add-btn${inQ?' in-queue':''}" onclick="addToQueue(${podId},${i},event)" title="${inQ?'In queue':'Add to queue'}">${inQ?'✓':'+'}</button>
     </div>`;
@@ -969,6 +972,7 @@ function toggleQueueSelect(i) {
 
 function removeQueueSelected() {
   const indices = Array.from(queueSelected).sort((a, b) => b - a);
+  purgeWaypoints(new Set(indices.map(i => S.queue[i].id)));
   let removedBeforeCurrent = 0;
   for (const i of indices) {
     if (i < S.qi) removedBeforeCurrent++;
@@ -987,6 +991,7 @@ function removeQueueSelected() {
 function clearQueue() {
   audio.pause();
   audio.src = '';
+  S.waypoints = [];
   S.queue = [];
   S.qi = 0;
   save();
@@ -1026,9 +1031,14 @@ function renderQueue() {
   }).join('');
 }
 
+function purgeWaypoints(epIds) {
+  S.waypoints = S.waypoints.filter(w => !epIds.has(w.epId));
+}
+
 function delFromQueue(ev, i) {
   ev.stopPropagation();
   const wasPlaying = !audio.paused;
+  purgeWaypoints(new Set([S.queue[i].id]));
   if (i === S.qi) { audio.pause(); audio.src = ''; }
   S.queue.splice(i, 1);
   if (S.qi >= S.queue.length) S.qi = Math.max(0, S.queue.length - 1);
@@ -1287,7 +1297,13 @@ audio.addEventListener('timeupdate', () => {
   S.pos = audio.currentTime;
   updateProgress();
   const ep = S.queue[S.qi];
-  if (ep) S.positions[ep.id] = audio.currentTime;
+  if (ep) {
+    S.positions[ep.id] = audio.currentTime;
+    if (!S.listened[ep.id] && audio.duration && audio.currentTime / audio.duration >= 0.8) {
+      S.listened[ep.id] = true;
+      save();
+    }
+  }
   if (Math.round(audio.currentTime) % 5 === 0) save();
 });
 
@@ -1554,7 +1570,7 @@ document.getElementById('fp-mark-wp').addEventListener('click', () => {
   S.waypoints.unshift({
     id: Date.now(),
     label: ep.title.slice(0,50),
-    qi: S.qi,
+    epId: ep.id,
     pos: audio.currentTime,
     epTitle: ep.title,
     showName: ep.podName,
@@ -1576,7 +1592,7 @@ function cycleSleep() {
       S.waypoints.unshift({
         id: Date.now(),
         label: '⏾ Sleep timer — ' + ep.title.slice(0, 40),
-        qi: S.qi,
+        epId: ep.id,
         pos: audio.currentTime,
         epTitle: ep.title,
         showName: ep.podName,
@@ -1634,7 +1650,9 @@ document.getElementById('fp-sleep-btn').addEventListener('click', cycleSleep);
 function jumpToWaypoint(id) {
   const wp = S.waypoints.find(w => w.id === id);
   if (!wp) return;
-  S.qi = wp.qi;
+  const qIdx = S.queue.findIndex(e => e.id === wp.epId);
+  if (qIdx === -1) { toast('Episode no longer in queue'); return; }
+  S.qi = qIdx;
   S.pos = wp.pos;
   loadTrack(true);
   save();
