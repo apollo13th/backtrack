@@ -146,14 +146,16 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
 .art-dots{display:flex;gap:7px;justify-content:center;margin-bottom:10px;flex-shrink:0}
 .art-dot{width:6px;height:6px;border-radius:50%;background:var(--muted);transition:background 0.2s,transform 0.2s}
 .art-dot.on{background:var(--orange);transform:scale(1.25)}
-.ch-item{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:9px 4px;border-bottom:1px solid var(--border);cursor:pointer}
+.ch-item{display:flex;align-items:center;gap:8px;padding:9px 4px;border-bottom:1px solid var(--border);cursor:pointer}
 .ch-item:last-child{border-bottom:none}
-.ch-title{font-size:13px;font-weight:600;color:var(--text);flex:1;line-height:1.3}
-.ch-time{font-size:12px;color:var(--dim);flex-shrink:0;font-variant-numeric:tabular-nums}
+.ch-body{flex:1;min-width:0}
+.ch-title{font-size:13px;font-weight:600;color:var(--text);line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ch-meta{font-size:11px;color:var(--dim);margin-top:2px;font-variant-numeric:tabular-nums}
+.ch-link{font-size:16px;color:var(--dim);flex-shrink:0;text-decoration:none;padding:0 2px}
 .ch-current .ch-title{color:var(--orange)}
-.ch-current .ch-time{color:var(--orange)}
+.ch-current .ch-meta{color:var(--orange)}
 .ch-past .ch-title{color:var(--muted)}
-.ch-past .ch-time{color:var(--muted)}
+.ch-past .ch-meta{color:var(--muted)}
 #fp-title{font-size:18px;font-weight:800;text-align:center;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-bottom:4px;letter-spacing:-0.3px;cursor:pointer}
 #fp-title:active{opacity:0.6}
 #fp-show{font-size:13px;color:var(--dim);text-align:center;margin-bottom:22px;cursor:pointer}
@@ -1643,6 +1645,105 @@ async function fetchJson(url) {
   }
 }
 
+// Parse ID3v2 CHAP frames from the first 64 KB of an MP3 file
+async function loadChaptersFromId3(audioUrl) {
+  if (!audioUrl) return null;
+  try {
+    const r = await fetch(audioUrl, { headers: { Range: 'bytes=0-65535' }, signal: AbortSignal.timeout(20000) });
+    if (!r.ok && r.status !== 206) return null;
+    // Stream and cancel after 64 KB to avoid downloading the whole file
+    const reader = r.body.getReader();
+    const chunks = [];
+    let total = 0;
+    while (total < 65536) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(value);
+      total += value.length;
+    }
+    reader.cancel().catch(() => {});
+    const buf = new Uint8Array(total);
+    let off = 0;
+    for (const c of chunks) { buf.set(c, off); off += c.length; }
+
+    // Verify ID3 magic
+    if (buf[0] !== 0x49 || buf[1] !== 0x44 || buf[2] !== 0x33) return null;
+    const ver = buf[3]; // 2=v2.2, 3=v2.3, 4=v2.4
+    const tagEnd = 10 + (((buf[6]&0x7f)<<21)|((buf[7]&0x7f)<<14)|((buf[8]&0x7f)<<7)|(buf[9]&0x7f));
+    const idLen = ver <= 2 ? 3 : 4;
+    const hdrLen = ver <= 2 ? 6 : 10;
+
+    function frameSize(i) {
+      if (ver <= 2) return (buf[i]<<16)|(buf[i+1]<<8)|buf[i+2];
+      if (ver === 4) return ((buf[i]&0x7f)<<21)|((buf[i+1]&0x7f)<<14)|((buf[i+2]&0x7f)<<7)|(buf[i+3]&0x7f);
+      return (((buf[i]<<24)|(buf[i+1]<<16)|(buf[i+2]<<8)|buf[i+3])>>>0);
+    }
+    function decodeStr(start, len) {
+      if (start >= buf.length || len <= 0) return '';
+      const enc = buf[start];
+      const raw = buf.slice(start + 1, start + len);
+      if (enc === 1) {
+        // UTF-16 with BOM
+        const be = raw[0] === 0xFE && raw[1] === 0xFF;
+        return new TextDecoder(be ? 'utf-16be' : 'utf-16le').decode(raw.slice(2)).replace(/\0/g,'');
+      }
+      if (enc === 2) return new TextDecoder('utf-16be').decode(raw).replace(/\0/g,'');
+      if (enc === 3) return new TextDecoder('utf-8').decode(raw).replace(/\0/g,'');
+      return Array.from(raw).map(b => String.fromCharCode(b)).join('').replace(/\0/g,'');
+    }
+
+    const chapters = [];
+    let pos = 10;
+    while (pos + hdrLen <= Math.min(tagEnd, buf.length)) {
+      if (buf[pos] === 0) break;
+      const fid = String.fromCharCode(...buf.slice(pos, pos + idLen));
+      const fsz = frameSize(pos + idLen);
+      if (fsz <= 0 || fsz > 524288) break;
+      const fdata = pos + hdrLen;
+
+      if (fid === 'CHAP') {
+        // Element ID (null-terminated)
+        let e = fdata;
+        while (e < buf.length && buf[e] !== 0) e++;
+        const t = e + 1;
+        if (t + 16 > buf.length) { pos += hdrLen + fsz; continue; }
+        const startMs = (((buf[t]<<24)|(buf[t+1]<<16)|(buf[t+2]<<8)|buf[t+3])>>>0);
+        const endMs   = (((buf[t+4]<<24)|(buf[t+5]<<16)|(buf[t+6]<<8)|buf[t+7])>>>0);
+
+        let title = '', url = '';
+        let sub = t + 16;
+        const subEnd = fdata + fsz;
+        while (sub + hdrLen <= Math.min(subEnd, buf.length)) {
+          if (buf[sub] === 0) break;
+          const sid = String.fromCharCode(...buf.slice(sub, sub + idLen));
+          const ssz = frameSize(sub + idLen);
+          if (ssz <= 0) break;
+          if (sid === 'TIT2') title = decodeStr(sub + hdrLen, ssz);
+          if (sid === 'WXXX' || sid === 'WXX') {
+            // Skip encoding byte + description, then URL
+            let descEnd = sub + hdrLen + 1;
+            while (descEnd < buf.length && buf[descEnd] !== 0) descEnd++;
+            url = new TextDecoder('utf-8').decode(buf.slice(descEnd + 1, sub + hdrLen + ssz));
+          }
+          sub += hdrLen + ssz;
+        }
+        chapters.push({
+          startTime: startMs / 1000,
+          endTime: endMs === 0xFFFFFFFF ? undefined : endMs / 1000,
+          title,
+          url: url || undefined,
+        });
+      }
+      pos += hdrLen + fsz;
+    }
+    console.log('[chapters] ID3 parse complete, found', chapters.length, 'chapters');
+    return chapters.length > 0 ? chapters.sort((a,b) => a.startTime - b.startTime) : null;
+  } catch(e) {
+    console.warn('[chapters] ID3 parse error', e);
+    return null;
+  }
+}
+
 async function loadChapters(ep) {
   const chDiv = document.getElementById('fp-chapters');
   const dot0 = document.getElementById('art-dot-0');
@@ -1673,10 +1774,27 @@ async function loadChapters(ep) {
     resolvedUrl = '';
   }
 
-  // No chapters for this episode
+  // No RSS chapters URL — try ID3 CHAP frames embedded in the MP3 as a fallback
   if (!resolvedUrl) {
-    console.log('[chapters] no chaptersUrl — podcast does not have chapters');
-    currentChapters = []; chaptersEpId = null; lastHighlightedChapter = -1;
+    // Skip if already tried for this episode
+    if (chaptersEpId === ep.id) return;
+    if (ep?.audioUrl) {
+      console.log('[chapters] no RSS chaptersUrl — trying ID3 CHAP frames');
+      chDiv.innerHTML = '<div style="color:var(--dim);font-size:13px;padding:8px 4px">Loading chapters…</div>';
+      dot0.style.display = '';
+      const id3Chs = await loadChaptersFromId3(ep.audioUrl);
+      if (id3Chs) {
+        currentChapters = id3Chs;
+        chaptersEpId = ep.id;
+        lastHighlightedChapter = -1;
+        dot0.style.display = '';
+        renderChapters();
+        updateCarouselBtns();
+        return;
+      }
+    }
+    console.log('[chapters] no chapters found anywhere');
+    currentChapters = []; chaptersEpId = ep.id; lastHighlightedChapter = -1;
     dot0.style.display = 'none';
     chDiv.innerHTML = '<div style="color:var(--dim);font-size:13px;padding:8px 4px">No chapters for this episode.</div>';
     updateCarouselBtns();
@@ -1708,12 +1826,21 @@ function renderChapters() {
     chDiv.innerHTML = '<div style="color:var(--dim);font-size:13px;padding:8px 4px">No chapters available.</div>';
     return;
   }
-  chDiv.innerHTML = currentChapters.map((ch, i) =>
-    `<div class="ch-item" id="ch-${i}" onclick="seekToChapter(${ch.startTime})">
-      <div class="ch-title">${esc(ch.title || `Chapter ${i+1}`)}</div>
-      <div class="ch-time">${ft(ch.startTime)}</div>
-    </div>`
-  ).join('');
+  const epDur = S.queue[S.qi]?.dur || audio.duration || 0;
+  chDiv.innerHTML = currentChapters.map((ch, i) => {
+    const next = currentChapters[i + 1];
+    const end = ch.endTime ?? next?.startTime ?? (i === currentChapters.length - 1 ? epDur : null);
+    const durSec = end != null ? Math.max(0, end - ch.startTime) : null;
+    const durLabel = durSec != null ? (durSec >= 60 ? `${Math.round(durSec/60)}m` : `${Math.round(durSec)}s`) : '';
+    const linkBtn = ch.url ? `<a class="ch-link" href="${esc(ch.url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">›</a>` : '';
+    return `<div class="ch-item" id="ch-${i}" onclick="seekToChapter(${ch.startTime})">
+      <div class="ch-body">
+        <div class="ch-title">${esc(ch.title || `Chapter ${i+1}`)}</div>
+        <div class="ch-meta">${ft(ch.startTime)}${durLabel ? ' · ' + durLabel : ''}</div>
+      </div>
+      ${linkBtn}
+    </div>`;
+  }).join('');
   updateChapterHighlight();
 }
 
