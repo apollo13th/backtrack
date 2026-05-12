@@ -6,10 +6,10 @@
 <title>Backtrack</title>
 <style>
 :root {
-  --orange: #F9A620;
-  --orange-dim: #d4851a;
-  --orange-end: #F76CC6;
-  --gradient: linear-gradient(135deg, #F9A620, #F76CC6);
+  --orange: #FF6600;
+  --orange-dim: #CC5200;
+  --orange-end: #FF3D7F;
+  --gradient: linear-gradient(135deg, #FF6600, #FF3D7F);
   --bg: #000;
   --s1: #111111;
   --s2: #1a1a1a;
@@ -163,7 +163,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
 .prog-wrap{margin-bottom:16px;flex-shrink:0}
 #prog-track{width:100%;height:6px;background:var(--s3);border-radius:4px;position:relative;cursor:pointer;touch-action:none;padding:6px 0;margin:-6px 0;box-sizing:content-box}
 #prog-fill{height:6px;background:var(--gradient);border-radius:4px;width:0%;pointer-events:none;position:relative;top:0}
-#prog-thumb{width:16px;height:16px;border-radius:50%;background:var(--orange);position:absolute;top:50%;transform:translate(-50%,-50%);pointer-events:none;box-shadow:0 0 0 3px rgba(249,166,32,0.3)}
+#prog-thumb{width:16px;height:16px;border-radius:50%;background:var(--orange);position:absolute;top:50%;transform:translate(-50%,-50%);pointer-events:none;box-shadow:0 0 0 3px rgba(255,102,0,0.3)}
 .time-row{display:flex;justify-content:space-between;font-size:11px;color:var(--dim);margin-top:6px}
 
 /* Speed */
@@ -1615,7 +1615,7 @@ fpTopbar.addEventListener('touchmove', onDragMove, {passive: true});
 fpTopbar.addEventListener('touchend', onDragEnd, {passive: true});
 
 // Chapters
-let currentChapters = [], chaptersEpId = null, lastHighlightedChapter = -1;
+let currentChapters = [], chaptersEpId = null, lastHighlightedChapter = -1, chaptersLoading = false;
 
 async function fetchJson(url) {
   try {
@@ -1637,6 +1637,18 @@ async function loadChapters(ep) {
   const chDiv = document.getElementById('fp-chapters');
   const dot0 = document.getElementById('art-dot-0');
   if (!resolvedUrl) {
+    // Try fetching the subscribed feed to get chaptersUrl — only once (chaptersLoading guards recursion)
+    if (ep?.podId && !chaptersLoading) {
+      const sub = S.subs.find(s => s.id === ep.podId);
+      if (sub?.feedUrl) {
+        chaptersLoading = true;
+        chDiv.innerHTML = '<div style="color:var(--dim);font-size:13px;padding:8px 4px">Loading chapters…</div>';
+        dot0.style.display = '';
+        try { await fetchFeed(ep.podId, sub.feedUrl, sub, true); } catch {}
+        chaptersLoading = false;
+        return; // fetchFeed re-calls loadChapters with fresh ep data
+      }
+    }
     currentChapters = []; chaptersEpId = null; lastHighlightedChapter = -1;
     dot0.style.display = 'none';
     chDiv.innerHTML = '';
