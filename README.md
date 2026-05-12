@@ -36,6 +36,7 @@ GitHub Pages takes ~1 minute to go live after each push.
   - **+ Queue** — shows Play Next / Add to End action sheet
 - **+ button on episode row** — add to queue (Play Next / Add to End); turns orange ✓ when in queue; tap ✓ to remove
 - **Queue action sheet** — Play Next (inserts after current) or Add to End
+- **Listened indicator** — episodes played past 80% show `✓ listened` in light orange in the meta line
 
 ### Playback
 - **Continuous queue** — tap episode in queue to play; drag ⠿ to reorder (ghost + placeholder); × to delete
@@ -50,8 +51,9 @@ GitHub Pages takes ~1 minute to go live after each push.
 - **Show notes** — parsed from `content:encoded` → `itunes:summary` → `description` (handles AppStories, Relay FM, Megaphone, etc.)
 - **Swipe down on artwork to dismiss** — or use the topbar drag handle; player is a fixed non-scrolling layout
 - **Progress scrubber** — tap or drag; requires deliberate horizontal intent to avoid conflicts with vertical swipes
-- **Waypoints** — tap ⚑ to bookmark a moment; listed in Waypoints tab; tap to jump back
+- **Waypoints** — tap ⚑ to bookmark a moment; listed oldest→newest; tab auto-scrolls to most recent
 - **Sleep timer** — ⏾ cycles 15/30/45/60 min then off; saves a waypoint when started so you can find where you fell asleep
+- Removing an episode from the queue deletes its waypoints automatically
 
 ### Mini Player
 - Always visible when something is queued; tap body to expand full player
@@ -70,12 +72,14 @@ GitHub Pages takes ~1 minute to go live after each push.
 | Key | Value |
 |-----|-------|
 | Storage key | `backtrack_v1` in localStorage |
-| State object | `S` — `{ subs, lib, queue, qi, pos, positions, speed, waypoints }` |
+| State object | `S` — `{ subs, lib, queue, qi, pos, positions, speed, waypoints, listened }` |
 | Browse cache | `browseCache` — in-memory only, not persisted; promoted to `S.lib` on subscribe |
 | Audio | `<audio id="audio-el">` — HTML5, no Web Audio API |
 | Full player | `position:fixed; transform:translateY(100%)` hidden, `.on` shows it; `overflow:hidden` (non-scrolling) |
 | CORS proxies | Direct fetch first, then `Promise.any()` racing: allorigins.win/raw, corsproxy.io, codetabs.com, thingproxy.freeboard.io, allorigins.win/get |
 | Episode IDs | `${podId}_${index}` — position-based, not stable across feed refreshes |
+| Waypoints | Stored with `epId` (not queue index); jump resolves by finding episode in queue by ID |
+| Listened | `S.listened[epId] = true` when playback passes 80% of duration |
 
 ---
 
@@ -92,6 +96,7 @@ GitHub Pages takes ~1 minute to go live after each push.
 - **Carousel freezes mid-animation:** touching during a CSS transition froze the slider; fixed by snapping to correct position on touchstart.
 - **Show notes not appearing for some feeds:** iTunes RSS uses `content:encoded` for full notes; now checked first before `itunes:summary` and `description`.
 - **iOS keyboard not appearing on filter inputs:** `type="search"` + dynamically shown views don't trigger keyboard; use `type="text" inputmode="search"`.
+- **Mini player progress bar not visible:** `overflow:hidden` + `border-radius` doesn't clip correctly on iOS Safari without `-webkit-transform:translateZ(0)`.
 
 ---
 
@@ -109,6 +114,7 @@ GitHub Pages takes ~1 minute to go live after each push.
 - **Empty feed URL** — some iTunes search results have no `feedUrl`; episode view shows "Loading…" indefinitely.
 - **Unsubscribe doesn't clean up `S.lib` cache** — episodes remain in memory and localStorage after unsubscribing.
 - **`.eps-desc` missing word-break** — long URLs in the episode detail sheet can overflow horizontally (same fix needed as was applied to `#fp-notes`).
+- **Mini player title shows raw HTML entities** — e.g. `&#8217;` instead of `'`; needs entity decoding when setting `mini-title` text.
 
 ---
 
