@@ -2429,15 +2429,12 @@ document.addEventListener('keydown', e => {
   updateMini();
   if (S.queue[S.qi]) {
     const ep = S.queue[S.qi];
-    document.getElementById('fp-art').src = ep.art || '';
-    document.getElementById('fp-title').textContent = ep.title;
-    document.getElementById('fp-show').textContent = ep.podName;
+    updateFP();
     const pct = ep.dur ? S.pos / ep.dur * 100 : 0;
     document.getElementById('prog-fill').style.width = pct + '%';
     document.getElementById('mini-prog-fill').style.width = pct + '%';
     document.getElementById('t-cur').textContent = ft(S.pos);
     document.getElementById('t-rem').textContent = ep.dur ? '-'+ft(ep.dur - S.pos) : '-0:00';
-    if (isDesktop()) loadChapters(ep);
   }
 })();
 </script>
