@@ -1490,14 +1490,29 @@ function updateMediaSession() {
     album: ep.podName,
     artwork: ep.art ? [{ src: ep.art, sizes: '512x512', type: 'image/jpeg' }] : [],
   });
-  // Let iOS drive play/pause on the <audio> element natively — setting JS handlers
-  // blocks iOS's own resume and causes it to silently fail. Only override seek/track.
-  navigator.mediaSession.setActionHandler('play', null);
-  navigator.mediaSession.setActionHandler('pause', null);
-  navigator.mediaSession.setActionHandler('previoustrack', prevTrack);
-  navigator.mediaSession.setActionHandler('nexttrack', nextTrack);
-  navigator.mediaSession.setActionHandler('seekbackward', () => { audio.currentTime = Math.max(0, audio.currentTime - 30); });
-  navigator.mediaSession.setActionHandler('seekforward', () => { audio.currentTime = Math.min(audio.duration||0, audio.currentTime + 30); });
+  setMediaSessionHandlers();
+}
+
+function setMediaActionHandler(action, handler) {
+  try { navigator.mediaSession.setActionHandler(action, handler); } catch {}
+}
+
+function setMediaSessionHandlers() {
+  if (!('mediaSession' in navigator)) return;
+  setMediaActionHandler('play', () => {
+    if (!S.queue.length) return;
+    if (!audio.src || audio.src === location.href) loadTrack(true);
+    else audio.play().catch(()=>{});
+    navigator.mediaSession.playbackState = 'playing';
+  });
+  setMediaActionHandler('pause', () => {
+    audio.pause();
+    navigator.mediaSession.playbackState = 'paused';
+  });
+  setMediaActionHandler('previoustrack', prevTrack);
+  setMediaActionHandler('nexttrack', nextTrack);
+  setMediaActionHandler('seekbackward', () => { audio.currentTime = Math.max(0, audio.currentTime - 30); });
+  setMediaActionHandler('seekforward', () => { audio.currentTime = Math.min(audio.duration||0, audio.currentTime + 30); });
 }
 
 audio.addEventListener('durationchange', () => {
@@ -1567,7 +1582,7 @@ audio.addEventListener('timeupdate', () => {
   if (bucket !== lastSavedBucket) { lastSavedBucket = bucket; save(); }
 });
 
-audio.addEventListener('play', () => setPlayIcons(false));
+audio.addEventListener('play', () => { setPlayIcons(false); setMediaSessionHandlers(); });
 audio.addEventListener('pause', () => setPlayIcons(true));
 audio.addEventListener('ended', () => {
   const endedEp = S.queue[S.qi];
