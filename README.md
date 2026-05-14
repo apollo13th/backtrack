@@ -18,13 +18,11 @@ Edit `index.html` directly.
 git status --short
 ```
 
-Keep local workflow notes in `PRIVATE_NOTES.md`.
-
 ## Deploy
 
 ```bash
 git status --short
-git add index.html README.md .gitignore
+git add index.html README.md
 git commit -m "update"
 git push
 ```
@@ -131,21 +129,6 @@ GitHub Pages usually updates in about a minute.
 
 - **Lock screen play button unreliable** — `audio.play()` from JS context is blocked by iOS. Requires `AVAudioSession` (native app only).
 - **Background audio** — works while screen is on; may cut on lock depending on iOS version. Add to home screen for best behaviour.
-
----
-
-## Known bugs / open issues
-
-- None currently tracked.
-
-## Public Docs
-
-Still worth adding publicly:
-
-- a short “how to use Backtrack” walkthrough
-- one screenshot or GIF of the full player
-- a simple list of keyboard-free iPhone gestures
-- a brief note on what data stays in localStorage
 
 ---
 
