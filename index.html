@@ -336,7 +336,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
 
   <!-- SEARCH VIEW -->
   <div id="v-search" class="view">
-    <div class="vhead"><h1>Backtrack</h1></div>
+    <div class="vhead"><h1 id="app-title">Backtrack</h1></div>
     <div class="search-row">
       <input id="search-input" type="search" placeholder="Search podcasts…" autocomplete="off" autocorrect="off" spellcheck="false" inputmode="search">
       <button id="search-btn">Go</button>
@@ -791,6 +791,20 @@ document.getElementById('search-btn').addEventListener('click', doSearch);
 document.getElementById('search-input').addEventListener('keydown', e => { if (e.key === 'Enter') doSearch(); });
 document.getElementById('rss-btn').addEventListener('click', () => openPodFromRss(document.getElementById('rss-input').value));
 document.getElementById('rss-input').addEventListener('keydown', e => { if (e.key === 'Enter') openPodFromRss(document.getElementById('rss-input').value); });
+
+// Long-press "Backtrack" title to clear all local data (dev reset)
+let _resetTimer = null;
+document.getElementById('app-title').addEventListener('touchstart', () => {
+  _resetTimer = setTimeout(() => {
+    _resetTimer = null;
+    if (confirm('Clear all Backtrack data and start fresh?')) {
+      localStorage.clear();
+      location.reload();
+    }
+  }, 1500);
+}, { passive: true });
+document.getElementById('app-title').addEventListener('touchend', () => { clearTimeout(_resetTimer); }, { passive: true });
+document.getElementById('app-title').addEventListener('touchmove', () => { clearTimeout(_resetTimer); }, { passive: true });
 document.getElementById('search-results').addEventListener('click', e => {
   const card = e.target.closest('.pod-card');
   if (!card) return;
