@@ -337,7 +337,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
   <div id="v-search" class="view">
     <div class="vhead"><h1 id="app-title">Backtrack</h1></div>
     <div class="search-row">
-      <input id="search-input" type="search" placeholder="Search or paste RSS URL…" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" inputmode="search">
+      <input id="search-input" type="search" placeholder="Search podcasts…" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" inputmode="search">
       <button id="search-btn">Go</button>
     </div>
     <div class="scroll-area" id="search-results">
@@ -824,7 +824,6 @@ document.getElementById('search-results').addEventListener('click', e => {
 async function doSearch() {
   const q2 = document.getElementById('search-input').value.trim();
   if (!q2) return;
-  if (q2.startsWith('http://') || q2.startsWith('https://')) { openPodFromRss(q2); return; }
   const el = document.getElementById('search-results');
   el.innerHTML = '<div class="loading-msg">Searching…</div>';
   try {
@@ -876,13 +875,6 @@ function openPodFromSearch(collectionId) {
   });
 }
 
-function openPodFromRss(rawUrl) {
-  const feedUrl = (rawUrl || '').trim();
-  if (!feedUrl) return;
-  document.getElementById('search-input').value = '';
-  const podId = 'rss_' + hashStr(feedUrl);
-  showEpisodes(podId, { id: podId, name: '', art: '', feedUrl, desc: '', author: '' });
-}
 
 function toggleSub(id, name, art, feedUrl, desc, btn, author = '') {
   const i = S.subs.findIndex(s => s.id === id);

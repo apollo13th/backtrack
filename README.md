@@ -137,6 +137,7 @@ GitHub Pages usually updates in about a minute.
 
 - **Lock screen play/resume after pausing is unreliable** — `audio.play()` from a background JS context may be blocked by iOS. Episode auto-advance while locked works; full play/resume control requires `AVAudioSession` (native app only).
 - **Background audio** — works while screen is on; may cut on lock depending on iOS version. Add to home screen for best behaviour.
+- **Private/premium RSS feeds are not supported** — fetching any feed requires routing through a CORS proxy (browser security prevents direct cross-origin requests). The proxy's datacenter IP is what the feed server sees, and premium podcast hosting platforms (Supercast, Supporting Cast, etc.) actively block datacenter IPs to prevent token sharing. Feeds self-hosted without IP restrictions (e.g. a personal server) may work, but this cannot be guaranteed. Private feed support would require a native app or a self-hosted proxy on a residential IP.
 
 ---
 
