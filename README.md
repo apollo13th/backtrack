@@ -4,7 +4,7 @@ Single-file iPhone Safari podcast player. Dark theme, hosted on GitHub Pages.
 
 ## Purpose
 
-Backtrack is a mobile-first podcast player built around recovery-oriented listening. The sleep timer saves a waypoint when it starts, so it is easy to return to the point where listening drifted off. Manual waypoints, persistent positions, queue controls, and quick scrubbing make it easy to retrace and resume.
+Backtrack is a mobile-first podcast player built around recovery-oriented listening. Tapping the sleep timer immediately saves a waypoint so you can return to where you drifted off — even if several episodes played while you were asleep. Manual waypoints, persistent positions, queue controls, and quick scrubbing make it easy to retrace and resume.
 
 **Source file:** `index.html` (inline HTML, CSS, JS; no build step)
 
@@ -51,8 +51,9 @@ GitHub Pages usually updates in about a minute.
 - **Listened indicator** marks episodes played past 80% and persists across sessions
 
 ### Playback
-- **Continuous queue** supports tap-to-play, drag reordering, and delete
-- **Queue edit mode** supports multi-select, batch remove, and Clear All
+- **Continuous queue** is the default view; supports tap-to-play and drag reordering with smooth animation
+- **Queue edit mode** supports multi-select, batch remove, Keep Current, and Clear All; delete is only available in edit mode
+- **Current episode** is highlighted in the queue; a 🌙 appears on any episode that has a sleep waypoint
 - **Waypoints** are removed when an episode leaves the queue
 - **Persistent position** remembers where you left off per episode
 - **Playback speed**: 0.75×, 1×, 1.25×, 1.5×, 2×
@@ -63,9 +64,14 @@ GitHub Pages usually updates in about a minute.
 - **Artwork ↔ show notes carousel** swaps between artwork and episode notes
 - **Show notes** are parsed from `content:encoded`, then `itunes:summary`, then `description`
 - **Swipe down on artwork** dismisses the player; the topbar drag handle does the same
-- **Progress scrubber** responds to deliberate horizontal drags and taps
-- **Waypoints** are listed oldest to newest and resolve by episode ID
-- **Sleep timer** cycles 15/30/45/60 minutes, then off, and saves a waypoint when started
+- **Progress scrubber** responds to deliberate thumb drags only — tapping the track does not seek
+- **Sleep timer** cycles 15/30/45/60 minutes, then off; saves a 🌙 waypoint immediately on first tap, updates it on re-tap, and removes it if you cancel the timer manually
+
+### Waypoints
+- **Manual waypoints** (⚑) mark a moment in any queued episode and jump back to it on tap
+- **Sleep waypoints** (🌙) are created automatically when the sleep timer is started and are visually distinct — warm tint, moon icon — so they are easy to find and delete after waking up
+- **Waypoint rows** show episode artwork, show name, episode title, and position in the episode
+- **Edit mode** supports multi-select remove and Clear All
 
 ### Mini Player
 - Stays visible whenever something is queued and expands on tap
@@ -76,7 +82,8 @@ GitHub Pages usually updates in about a minute.
 - **Lock screen / Control Center** exposes artwork, title, skip, and track controls
 - **Accessibility** adds `aria-label` text and updates the play/pause label dynamically
 - **Safe area handling** clears the home indicator and Dynamic Island
-- **Tab order** is Library · Queue · Waypoints · Search
+- **Tab order** is Library · Queue · Waypoints · Search; Queue is the default tab on launch
+- **Portrait orientation** — a full-screen overlay prompts rotation on landscape mobile devices
 
 ---
 
@@ -91,7 +98,7 @@ GitHub Pages usually updates in about a minute.
 | Full player | `position:fixed; transform:translateY(100%)` hidden, `.on` shows it; non-scrolling layout |
 | CORS proxies | Direct fetch first, then `Promise.any()` racing: allorigins.win/raw, corsproxy.io, codetabs.com, thingproxy.freeboard.io, allorigins.win/get |
 | Episode IDs | Stable hash from RSS `guid` → enclosure URL → title+pubDate fallback |
-| Waypoints | Stored with `epId` (not queue index); jump resolves by finding episode in queue by ID |
+| Waypoints | Stored with `epId`, `art`, `epNum`, and `type` (`'sleep'` or unset); jump resolves by finding episode in queue by ID; sleep waypoints detected by `type === 'sleep'` or label fallback |
 | Listened | `S.listened[epId] = true` when playback passes 80% of duration |
 | Position save | Throttled by 5-second bucket (`lastSavedBucket`) — saves once per interval, not multiple times |
 
@@ -122,6 +129,7 @@ GitHub Pages usually updates in about a minute.
 - **Episode IDs shifting after feed refresh** — IDs now use RSS `guid`, then enclosure URL, then title+pubDate hash as fallback
 - **Queue removal paths drifting apart** — row delete, add-button removal, and edit-mode batch removal now share one removal path
 - **Raw HTML entities in feed text** — feed titles and descriptions are decoded after XML extraction
+- **Queue drag scrolling top item** — drag touch listeners changed to non-passive so scroll is suppressed during reorder; previously the topmost item would scroll the list instead of dragging
 
 ---
 
