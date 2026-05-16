@@ -2342,6 +2342,7 @@ const artWrap = artSlider.parentElement;
 
 function setCarouselPanel(index, animate = true) {
   const W = artWrap.offsetWidth;
+  const prevPanel = carouselPanel;
   artSlider.style.transition = animate ? 'transform 0.35s cubic-bezier(0.32,0.72,0,1)' : 'none';
   artSlider.style.transform = `translateX(${-index * W}px)`;
   carouselPanel = index;
@@ -2349,7 +2350,7 @@ function setCarouselPanel(index, animate = true) {
   document.getElementById('art-dot-1').classList.toggle('on', index === 1);
   document.getElementById('art-dot-2').classList.toggle('on', index === 2);
   updateCarouselBtns();
-  if (index === 0) {
+  if (index === 0 && prevPanel !== 0) {
     setTimeout(() => {
       const chDiv = document.getElementById('fp-chapters');
       const cur = chDiv?.querySelector('.ch-current');
