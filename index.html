@@ -1159,13 +1159,13 @@ function appendEpBatch() {
     const i = epAllEps.indexOf(ep);
     const inQ = S.queue.some(q => q.id === ep.id);
     const heard = !!S.listened[ep.id];
-    return `<div class="ep-item" onclick="tapEpisode(${ep.podId},${i},event)">
+    return `<div class="ep-item" onclick="tapEpisode(${JSON.stringify(ep.podId)},${i},event)">
       <img class="ep-art" src="${esc(ep.art)}" alt="" loading="lazy">
       <div class="ep-info">
         <div class="ep-title">${esc(ep.title)}</div>
         <div class="ep-meta">${esc(ep.date)}${ep.dur ? ' · '+ft(ep.dur) : ''}${heard ? ' · <span class="ep-listened">✓ listened</span>' : ''}</div>
       </div>
-      <button id="add-${ep.id}" class="add-btn${inQ?' in-queue':''}" onclick="addToQueue(${ep.podId},${i},event)" title="${inQ?'In queue':'Add to queue'}">${inQ?'✓':'+'}</button>
+      <button id="add-${ep.id}" class="add-btn${inQ?' in-queue':''}" onclick="addToQueue(${JSON.stringify(ep.podId)},${i},event)" title="${inQ?'In queue':'Add to queue'}">${inQ?'✓':'+'}</button>
     </div>`;
   }).join(''));
   epRenderBatch++;
