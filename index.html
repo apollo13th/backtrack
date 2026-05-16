@@ -641,6 +641,20 @@ function decodeEntities(s) {
   return d.textContent;
 }
 
+function renderDesc(raw) {
+  if (!raw) return '';
+  // If content has HTML tags treat as HTML, otherwise render as Markdown
+  if (/<[a-zA-Z]/.test(raw)) return sanitizeHtml(raw);
+  return raw
+    .replace(/\[([^\]\n]+)\]\s*\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>')
+    .replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*([^*\n]+)\*/g, '<em>$1</em>')
+    .split(/\n{2,}/)
+    .filter(p => p.trim())
+    .map(p => `<p>${p.trim().replace(/\n/g, '<br>')}</p>`)
+    .join('') || `<p>${raw.trim()}</p>`;
+}
+
 function feedText(s) {
   if (!s) return '';
   const d = document.createElement('div');
@@ -1096,7 +1110,7 @@ async function fetchFeed(podId, feedUrl, podMeta = {}, persist = true) {
       const stableKey = guid || audioUrl || (rawTitle + pub);
       const id = `${podId}_${hashStr(stableKey)}`;
       epRawDescCache.set(id, rawDesc);
-      const descHtml = sanitizeHtml(rawDesc);
+      const descHtml = renderDesc(rawDesc);
       return {
         id,
         podId,
@@ -1231,7 +1245,7 @@ function openEpSheet(ep) {
   const meta = [ep.epNum ? `Ep ${ep.epNum}` : '', ep.date, ep.dur ? ft(ep.dur) : ''].filter(Boolean).join(' · ');
   document.getElementById('eps-meta').textContent = meta;
   const epsDescEl = document.getElementById('eps-desc');
-  const epDescHtml = ep.descHtml || sanitizeHtml(epRawDescCache.get(ep.id) || '');
+  const epDescHtml = ep.descHtml || renderDesc(epRawDescCache.get(ep.id) || '');
   if (epDescHtml) { epsDescEl.innerHTML = epDescHtml; } else { epsDescEl.textContent = ep.desc || 'No show notes available.'; }
   const qIdx = S.queue.findIndex(q => q.id === ep.id);
   const inQ = qIdx !== -1;
@@ -1938,7 +1952,7 @@ function updateFP() {
   document.querySelectorAll('.spd-btn').forEach(b => b.classList.toggle('on', parseFloat(b.dataset.s) === S.speed));
   const desc = ep.desc || (S.lib[ep.podId] || []).find(e => e.id === ep.id)?.desc || '';
   const fpDescHtml = ep.descHtml || (S.lib[ep.podId] || []).find(e => e.id === ep.id)?.descHtml
-    || sanitizeHtml(epRawDescCache.get(ep.id) || '');
+    || renderDesc(epRawDescCache.get(ep.id) || '');
   const fpNotes = document.getElementById('fp-notes');
   if (fpDescHtml) {
     fpNotes.innerHTML = fpDescHtml;
