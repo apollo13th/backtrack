@@ -74,22 +74,19 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
 .add-btn.in-queue{background:var(--gradient);color:#000;border-color:var(--orange);font-size:16px}
 
 /* Queue */
-.q-item{display:flex;align-items:center;gap:10px;background:var(--s1);border-radius:18px;padding:12px;margin-bottom:8px;cursor:pointer}
+.q-item{display:flex;align-items:center;gap:12px;background:var(--s1);border-radius:18px;padding:12px;margin-bottom:8px;cursor:pointer}
 .q-item:active{opacity:0.7}
 .q-item.now{background:var(--s2);border:1.5px solid var(--orange)}
-.q-num{width:22px;text-align:center;font-size:12px;color:var(--muted);flex-shrink:0;font-weight:600}
-.q-item.now .q-num{color:var(--orange)}
 .q-art{width:46px;height:46px;border-radius:12px;object-fit:cover;background:var(--s3);flex-shrink:0;cursor:pointer}
 .q-info{flex:1;min-width:0}
 .q-title{font-size:13px;font-weight:600;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .q-show{font-size:11px;color:var(--dim);overflow:hidden;white-space:nowrap;text-overflow:ellipsis;margin-top:2px}
+.q-meta{font-size:10px;color:var(--muted);overflow:hidden;white-space:nowrap;text-overflow:ellipsis;margin-top:1px}
 .q-status{display:flex;gap:5px;margin-top:6px;overflow:hidden;white-space:nowrap}
 .q-chip{font-size:9px;font-weight:800;letter-spacing:0.2px;color:var(--dim);border:1px solid var(--border);border-radius:8px;padding:3px 6px;line-height:1;background:rgba(255,255,255,0.03);flex-shrink:0}
 .q-chip.playing{color:#000;background:var(--gradient);border-color:transparent}
 .q-chip.sleep{color:#000;background:#f6b73c;border-color:#f6b73c}
 .q-chip.listened{color:var(--orange);border-color:rgba(255,102,0,0.45)}
-.q-notes{background:none;border:1px solid var(--muted);border-radius:50%;color:var(--muted);font-size:12px;font-weight:800;width:22px;height:22px;padding:0;flex-shrink:0;line-height:1;cursor:pointer}
-.q-notes:active{color:var(--orange);border-color:var(--orange)}
 .q-del{background:none;border:none;color:var(--muted);font-size:22px;padding:4px 6px;cursor:pointer;flex-shrink:0;line-height:1}
 .q-del:active{color:var(--text)}
 .q-drag{background:none;border:none;color:var(--muted);font-size:20px;padding:4px 4px;flex-shrink:0;touch-action:none;line-height:1;cursor:grab}
@@ -215,9 +212,6 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
 .filter-row input{width:100%;background:var(--s2);border:1.5px solid var(--border);border-radius:13px;color:var(--text);font-size:16px;padding:11px 14px;outline:none;-webkit-appearance:none;touch-action:manipulation}
 .filter-row input:focus{border-color:var(--orange)}
 .filter-row input::placeholder{color:var(--muted)}
-
-/* Queue meta */
-.q-meta{font-size:10px;color:var(--muted);overflow:hidden;white-space:nowrap;text-overflow:ellipsis;margin-top:1px}
 
 /* Queue action sheet */
 #queue-sheet{position:fixed;inset:0;background:rgba(0,0,0,0);z-index:400;display:flex;align-items:flex-end;pointer-events:none;transition:background 0.22s}
@@ -1296,9 +1290,7 @@ function renderQueue() {
     const statuses = queueStatusChips(ep, i);
     return `
     <div class="q-item${i===S.qi&&!queueEditMode?' now':''}${sel?' q-sel':''}" data-qi="${i}" onclick="${queueEditMode ? `toggleQueueSelect(${i})` : `playAt(${i},event)`}">
-      ${queueEditMode
-        ? `<div class="q-check">${sel ? '✓' : ''}</div>`
-        : `<div class="q-num">${i===S.qi ? '▶' : i+1}</div>`}
+      ${queueEditMode ? `<div class="q-check">${sel ? '✓' : ''}</div>` : ''}
       <img class="q-art" src="${esc(ep.art)}" alt="" loading="lazy" title="Open show" onclick="openQueueShow(event,${i})">
       <div class="q-info">
         <div class="q-title">${esc(ep.title)}</div>
@@ -1306,7 +1298,7 @@ function renderQueue() {
         ${meta ? `<div class="q-meta">${esc(meta)}</div>` : ''}
         ${statuses}
       </div>
-      ${queueEditMode ? '' : `<button class="q-notes" aria-label="Show notes" onclick="openQueueNotes(event,${i})">i</button><button class="q-drag" aria-label="Reorder">⠿</button><button class="q-del" onclick="delFromQueue(event,${i})">×</button>`}
+      ${queueEditMode ? '' : `<button class="q-drag" aria-label="Reorder">⠿</button><button class="q-del" onclick="delFromQueue(event,${i})">×</button>`}
     </div>`;
   }).join('');
 }
@@ -1315,12 +1307,10 @@ function queueStatusChips(ep, i) {
   const chips = [];
   const hasWp = S.waypoints.some(w => w.epId === ep.id);
   const hasSleep = S.waypoints.some(w => w.epId === ep.id && (w.type === 'sleep' || String(w.label || '').toLowerCase().includes('sleep')));
-  const hasNotes = !!(ep.desc || (S.lib[ep.podId] || []).find(e => e.id === ep.id)?.desc);
   if (i === S.qi) chips.push(['playing', audio.paused ? 'Current' : 'Playing']);
   if (S.listened[ep.id]) chips.push(['listened', 'Listened']);
   if (hasSleep) chips.push(['sleep', 'Sleep']);
   else if (hasWp) chips.push(['', 'Waypoint']);
-  if (hasNotes) chips.push(['', 'Notes']);
   if (!chips.length) return '';
   return `<div class="q-status">${chips.map(([cls, label]) => `<span class="q-chip${cls ? ' '+cls : ''}">${label}</span>`).join('')}</div>`;
 }
@@ -1334,13 +1324,6 @@ function delFromQueue(ev, i) {
   const wasPlaying = !audio.paused;
   removeQueueAt(i, { resumePlay: wasPlaying });
   renderQueue();
-}
-
-function openQueueNotes(ev, i) {
-  ev.stopPropagation();
-  const ep = S.queue[i];
-  if (!ep) return;
-  openEpSheet(ep);
 }
 
 function openQueueShow(ev, i) {
@@ -1365,7 +1348,7 @@ function openQueueShow(ev, i) {
 let qDragJustEnded = false;
 function playAt(i, e) {
   if (qDragJustEnded) return;
-  if (e && e.target.closest('.q-drag,.q-notes,.q-art')) return;
+  if (e && e.target.closest('.q-drag,.q-art')) return;
   S.qi = i;
   const ep = S.queue[i];
   S.pos = (ep && S.positions[ep.id]) || 0;
