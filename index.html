@@ -954,7 +954,7 @@ function showEpisodes(podId, podMeta) {
     renderEps(podId);
     // Background refresh if any episode is missing chaptersUrl (schema migration from old cache)
     const persist = S.subs.some(s => s.id === podId);
-    if (persist && currentBrowsePod?.feedUrl && eps.some(ep => ep.chaptersUrl === undefined)) {
+    if (persist && currentBrowsePod?.feedUrl && eps.some(ep => ep.chaptersUrl === undefined || !ep.descHtml)) {
       fetchFeed(podId, currentBrowsePod.feedUrl, currentBrowsePod, true).then(() => renderEps(podId));
     }
   } else if (!currentBrowsePod?.feedUrl) {
@@ -1940,7 +1940,23 @@ function updateFP() {
   const fpDescHtml = ep.descHtml || (S.lib[ep.podId] || []).find(e => e.id === ep.id)?.descHtml
     || sanitizeHtml(epRawDescCache.get(ep.id) || '');
   const fpNotes = document.getElementById('fp-notes');
-  if (fpDescHtml) { fpNotes.innerHTML = fpDescHtml; } else { fpNotes.textContent = desc || 'No show notes available.'; }
+  if (fpDescHtml) {
+    fpNotes.innerHTML = fpDescHtml;
+  } else {
+    fpNotes.textContent = desc || 'No show notes available.';
+    // Backfill descHtml for old episodes missing it — fetch feed once per pod per session
+    if (ep.podFeedUrl && !descHtmlRefreshes.has(ep.podId)) {
+      descHtmlRefreshes.add(ep.podId);
+      const sub = S.subs.find(s => s.id === ep.podId);
+      if (sub) {
+        fetchFeed(ep.podId, ep.podFeedUrl, sub, true).then(() => {
+          if (S.queue[S.qi]?.id !== ep.id) return;
+          const fresh = (S.lib[ep.podId] || []).find(e => e.id === ep.id);
+          if (fresh?.descHtml) document.getElementById('fp-notes').innerHTML = fresh.descHtml;
+        });
+      }
+    }
+  }
   setCarouselPanel(1, false);
   loadChapters(ep);
   updateProgress();
@@ -2017,6 +2033,7 @@ fpTopbar.addEventListener('touchend', onDragEnd, {passive: true});
 // Chapters
 let currentChapters = [], chaptersEpId = null, lastHighlightedChapter = -1, chapterLoadSeq = 0;
 const chapterFeedRefreshes = new Set();
+const descHtmlRefreshes = new Set(); // pods fetched this session to backfill missing descHtml
 const chapterResultCache = {};
 const ID3_CHAPTER_TIMEOUT_MS = 12000;
 
