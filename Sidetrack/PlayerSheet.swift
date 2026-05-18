@@ -121,7 +121,7 @@ struct PlayerSheet: View {
                     dragY = max(0, value.translation.height)
                     resetArtworkDrag(disablesAnimation: true)
                     dismissPlayer(continuingFromDrag: true)
-                } else if let targetPanel = artworkSwipeTarget(value) {
+                } else if let targetPanel = artworkDragTarget(value, cardSize: cardSize) {
                     finishArtworkSwipe(to: targetPanel, cardSize: cardSize)
                 } else {
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
@@ -163,14 +163,14 @@ struct PlayerSheet: View {
         return value.translation.height > 72 || predicted > 160
     }
 
-    private func artworkSwipeTarget(_ value: DragGesture.Value) -> Int? {
+    private func artworkDragTarget(_ value: DragGesture.Value, cardSize: CGFloat) -> Int? {
         let width = value.translation.width
-        let predictedWidth = value.predictedEndTranslation.width
-        let horizontal = max(abs(width), abs(predictedWidth))
+        let horizontal = abs(width)
         let vertical = abs(value.translation.height)
-        guard horizontal > 42 || abs(predictedWidth) > 96 else { return nil }
+        let threshold = max(cardSize * 0.32, 96)
+        guard horizontal >= threshold else { return nil }
         guard horizontal > vertical * 1.12 else { return nil }
-        return predictedWidth < 0 || width < 0 ? 2 : 0
+        return width < 0 ? 2 : 0
     }
 
     private func constrainedArtworkDragX(_ value: CGFloat, cardSize: CGFloat) -> CGFloat {
@@ -179,7 +179,9 @@ struct PlayerSheet: View {
 
     private func finishArtworkSwipe(to targetPanel: Int, cardSize: CGFloat) {
         let finalOffset = targetPanel == 0 ? cardSize : -cardSize
-        let settleDuration = 0.18
+        let remainingDistance = abs(finalOffset - artworkDragX)
+        let remainingProgress = remainingDistance / max(cardSize, 1)
+        let settleDuration = min(0.32, max(0.18, 0.14 + remainingProgress * 0.2))
 
         withAnimation(.easeOut(duration: settleDuration)) {
             artworkDragX = finalOffset
