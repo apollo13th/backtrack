@@ -2,12 +2,20 @@ import SwiftUI
 
 private let speedOptions: [Float] = [0.75, 1.0, 1.25, 1.5, 1.75, 2.0]
 
+private enum ArtworkDragAxis {
+    case horizontal
+    case vertical
+}
+
 struct PlayerSheet: View {
     @Environment(AppState.self) private var appState
     @Binding var isExpanded: Bool
     @State private var carouselPanel = 1  // 0 = chapters, 1 = artwork, 2 = notes
     @State private var dragY: CGFloat = 0
     @State private var sheetHeight: CGFloat = 0
+    @State private var artworkDragAxis: ArtworkDragAxis?
+    @State private var artworkDragX: CGFloat = 0
+    @State private var artworkPreviewTarget: Int?
     @GestureState(resetTransaction: Transaction(animation: .interactiveSpring(response: 0.28, dampingFraction: 0.84))) private var liveDragY: CGFloat = 0
 
     var body: some View {
@@ -93,25 +101,55 @@ struct PlayerSheet: View {
             }
     }
 
-    private var artworkDrag: some Gesture {
+    private func artworkDrag(cardSize: CGFloat) -> some Gesture {
         DragGesture(minimumDistance: 10, coordinateSpace: .global)
             .updating($liveDragY) { value, state, _ in
                 guard let translation = downwardDismissTranslation(value) else { return }
                 state = translation
             }
+            .onChanged { value in
+                if artworkDragAxis == nil {
+                    artworkDragAxis = resolvedArtworkDragAxis(value)
+                }
+
+                guard artworkDragAxis == .horizontal else { return }
+                artworkDragX = constrainedArtworkDragX(value.translation.width, cardSize: cardSize)
+                artworkPreviewTarget = artworkDragX < 0 ? 2 : 0
+            }
             .onEnded { value in
                 if shouldFinishDismiss(value) {
                     dragY = max(0, value.translation.height)
+                    resetArtworkDrag(disablesAnimation: true)
                     dismissPlayer(continuingFromDrag: true)
                 } else if let targetPanel = artworkSwipeTarget(value) {
                     withAnimation(.interactiveSpring(response: 0.32, dampingFraction: 0.88, blendDuration: 0.06)) {
                         carouselPanel = targetPanel
+                        resetArtworkDrag()
                         dragY = 0
                     }
                 } else {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) { dragY = 0 }
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
+                        resetArtworkDrag()
+                        dragY = 0
+                    }
                 }
             }
+    }
+
+    private func resolvedArtworkDragAxis(_ value: DragGesture.Value) -> ArtworkDragAxis? {
+        let horizontal = abs(value.translation.width)
+        let vertical = value.translation.height
+        guard horizontal > 8 || abs(vertical) > 8 else { return nil }
+
+        if vertical > 0, vertical > horizontal * 1.18 {
+            return .vertical
+        }
+
+        if horizontal > abs(vertical) * 1.08 {
+            return .horizontal
+        }
+
+        return nil
     }
 
     private func downwardDismissTranslation(_ value: DragGesture.Value) -> CGFloat? {
@@ -137,6 +175,26 @@ struct PlayerSheet: View {
         guard horizontal > 42 || abs(predictedWidth) > 96 else { return nil }
         guard horizontal > vertical * 1.12 else { return nil }
         return predictedWidth < 0 || width < 0 ? 2 : 0
+    }
+
+    private func constrainedArtworkDragX(_ value: CGFloat, cardSize: CGFloat) -> CGFloat {
+        min(cardSize * 1.05, max(-cardSize * 1.05, value))
+    }
+
+    private func resetArtworkDrag(disablesAnimation: Bool = false) {
+        if disablesAnimation {
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                artworkDragAxis = nil
+                artworkDragX = 0
+                artworkPreviewTarget = nil
+            }
+        } else {
+            artworkDragAxis = nil
+            artworkDragX = 0
+            artworkPreviewTarget = nil
+        }
     }
 
     private func dismissPlayer(continuingFromDrag: Bool = false) {
@@ -189,19 +247,37 @@ struct PlayerSheet: View {
     // MARK: - Artwork pane
 
     func artPane(cardSize: CGFloat) -> some View {
-        Group {
-            if let ep = appState.currentEpisode {
-                RemoteArtworkView(urls: appState.artworkCandidates(for: ep), cornerRadius: 20)
-                    .scaleEffect(appState.isPlaying ? 1.0 : 0.92)
-                    .animation(.spring(duration: 0.4), value: appState.isPlaying)
-            } else {
-                Color.sS3
+        ZStack {
+            if let target = artworkPreviewTarget {
+                artworkPreviewPane(target)
+                    .frame(width: cardSize, height: cardSize)
+                    .offset(x: target == 0 ? -cardSize + artworkDragX : cardSize + artworkDragX)
             }
+
+            Group {
+                if let ep = appState.currentEpisode {
+                    RemoteArtworkView(urls: appState.artworkCandidates(for: ep), cornerRadius: 20)
+                        .scaleEffect(appState.isPlaying ? 1.0 : 0.92)
+                        .animation(.spring(duration: 0.4), value: appState.isPlaying)
+                } else {
+                    Color.sS3
+                }
+            }
+            .offset(x: artworkDragAxis == .horizontal ? artworkDragX : 0)
         }
         .frame(width: cardSize, height: cardSize)
         .clipShape(RoundedRectangle(cornerRadius: 20))
         .contentShape(RoundedRectangle(cornerRadius: 20))
-        .gesture(artworkDrag, including: .gesture)
+        .gesture(artworkDrag(cardSize: cardSize), including: .gesture)
+    }
+
+    @ViewBuilder
+    private func artworkPreviewPane(_ target: Int) -> some View {
+        if target == 0 {
+            chaptersPane
+        } else {
+            notesPane
+        }
     }
 
     // MARK: - Chapters pane
