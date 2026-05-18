@@ -117,7 +117,8 @@ struct RemoteArtworkView: View {
     let urls: [String]
     var cornerRadius: CGFloat = 12
 
-    @State private var urlIndex = 0
+    @State private var image: UIImage?
+    @State private var loadID = UUID()
 
     private var candidates: [URL] {
         urls
@@ -130,37 +131,52 @@ struct RemoteArtworkView: View {
     }
 
     var body: some View {
-        Group {
-            if candidates.indices.contains(urlIndex) {
-                AsyncImage(url: candidates[urlIndex]) { phase in
-                    switch phase {
-                    case .success(let image):
-                        image.resizable().aspectRatio(contentMode: .fill)
-                    case .failure:
-                        fallbackOrPlaceholder
-                    case .empty:
-                        artworkPlaceholder
-                    @unknown default:
-                        artworkPlaceholder
-                    }
-                }
-                .id(candidates[urlIndex])
-                .onChange(of: urls) { _, _ in urlIndex = 0 }
+        ZStack {
+            if let image {
+                Image(uiImage: image)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
             } else {
                 artworkPlaceholder
             }
         }
         .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
+        .task(id: loadID) {
+            await loadArtwork()
+        }
+        .onChange(of: urls) { _, _ in
+            loadID = UUID()
+        }
     }
 
-    @ViewBuilder
-    private var fallbackOrPlaceholder: some View {
-        if urlIndex + 1 < candidates.count {
-            artworkPlaceholder
-                .task { urlIndex += 1 }
-        } else {
-            artworkPlaceholder
+    private func loadArtwork() async {
+        guard !candidates.isEmpty else {
+            image = nil
+            return
         }
+
+        for candidate in candidates {
+            if let cached = ArtworkImageCache.shared.object(forKey: candidate as NSURL) {
+                image = cached
+                return
+            }
+        }
+
+        let previousImage = image
+        for candidate in candidates {
+            do {
+                let (data, response) = try await URLSession.shared.data(from: candidate)
+                guard let http = response as? HTTPURLResponse, 200..<300 ~= http.statusCode else { continue }
+                guard let loadedImage = UIImage(data: data) else { continue }
+                ArtworkImageCache.shared.setObject(loadedImage, forKey: candidate as NSURL)
+                image = loadedImage
+                return
+            } catch {
+                continue
+            }
+        }
+
+        image = previousImage
     }
 
     private var artworkPlaceholder: some View {
@@ -172,4 +188,8 @@ struct RemoteArtworkView: View {
                 .foregroundStyle(Color.sMuted)
         }
     }
+}
+
+private enum ArtworkImageCache {
+    static let shared = NSCache<NSURL, UIImage>()
 }

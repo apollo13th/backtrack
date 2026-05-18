@@ -16,6 +16,8 @@ struct PlayerSheet: View {
     @State private var artworkDragAxis: ArtworkDragAxis?
     @State private var artworkDragX: CGFloat = 0
     @State private var artworkPreviewTarget: Int?
+    @State private var keepPagerVisibleOnArtwork = false
+    @State private var pagerSettleGeneration = 0
     @GestureState(resetTransaction: Transaction(animation: .interactiveSpring(response: 0.28, dampingFraction: 0.84))) private var liveDragY: CGFloat = 0
 
     var body: some View {
@@ -56,6 +58,9 @@ struct PlayerSheet: View {
         .offset(y: max(dragY, liveDragY))
         .onChange(of: isExpanded) { _, _ in
             if isExpanded { dragY = 0 }
+        }
+        .onChange(of: carouselPanel) { _, newPanel in
+            handleCarouselPanelChange(newPanel)
         }
     }
 
@@ -249,6 +254,29 @@ struct PlayerSheet: View {
         }
     }
 
+    private func handleCarouselPanelChange(_ newPanel: Int) {
+        pagerSettleGeneration += 1
+        let generation = pagerSettleGeneration
+
+        if newPanel == 1 {
+            guard keepPagerVisibleOnArtwork else { return }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.48) {
+                guard generation == pagerSettleGeneration, carouselPanel == 1 else { return }
+                var transaction = Transaction()
+                transaction.disablesAnimations = true
+                withTransaction(transaction) {
+                    keepPagerVisibleOnArtwork = false
+                }
+            }
+        } else {
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                keepPagerVisibleOnArtwork = true
+            }
+        }
+    }
+
     private func dismissPlayer(continuingFromDrag: Bool = false) {
         if continuingFromDrag {
             withAnimation(.easeOut(duration: 0.18)) {
@@ -282,7 +310,7 @@ struct PlayerSheet: View {
     @ViewBuilder
     func carousel(cardSize: CGFloat) -> some View {
         Group {
-            if carouselPanel == 1 {
+            if carouselPanel == 1, !keepPagerVisibleOnArtwork {
                 artPane(cardSize: cardSize)
             } else {
                 TabView(selection: $carouselPanel) {
@@ -291,6 +319,7 @@ struct PlayerSheet: View {
                     notesPane.tag(2)
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
+                .allowsHitTesting(!(carouselPanel == 1 && keepPagerVisibleOnArtwork))
             }
         }
         .frame(width: cardSize, height: cardSize)
